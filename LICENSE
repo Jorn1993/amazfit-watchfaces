@@ -1,0 +1,21 @@
+Sextant watch face
+Copyright (c) 2026 raetha
+
+Everything in this directory (faces/sextant/) is licensed under the Creative
+Commons Attribution-NonCommercial-ShareAlike 4.0 International licence
+(CC BY-NC-SA 4.0). Full text: ../../LICENSES/CC-BY-NC-SA-4.0.txt or
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+- Attribution: credit "Sextant by raetha" with a link to
+  https://github.com/raetha/zepp-watch-faces
+- NonCommercial: no selling of this face or adaptations of it, in any store.
+- ShareAlike: adaptations must use this same licence.
+
+The name "Sextant" and its store icon are not licensed for reuse; adaptations
+must use a different name.
+
+The bundled fonts in assets/common.r/fonts/ are Roboto Condensed under the SIL
+Open Font License 1.1 (see assets/common.r/fonts/OFL.txt).
+
+The shared code this face imports from ../../lib/ is MIT licensed (see the
+repository's LICENSE).
