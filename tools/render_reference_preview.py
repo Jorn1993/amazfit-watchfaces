@@ -51,7 +51,7 @@ def make():
         valbox = slot["value"]
         draw_text(draw, value, valbox, "#f3f7fd")
         cx = slot["cx"]
-        y = 139 if idx in (0,1,5) else 411
+        y = 139 if idx in (0,1,5) else 401
         textfont = font(15)
         width = draw.textbbox((0,0), label, font=textfont)[2]
         assert width < 106, label
