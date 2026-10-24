@@ -15,6 +15,7 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 #watch.guides:before{content:"";position:absolute;inset:24px;border-radius:50%;border:1px dashed #7acfac9c;pointer-events:none;z-index:5}
 #watch.guides:after{content:"";position:absolute;left:50%;top:0;height:100%;border-left:1px dashed #51799a66;pointer-events:none;z-index:5}
 .element{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;user-select:none;touch-action:none;cursor:grab;text-align:center;border:1px solid transparent}
+.element.gauge{background:#061727ed;border:2px solid #375875;border-radius:50%;box-shadow:inset 0 0 0 4px #071321,inset 0 6px 16px #163854;}
 .element.card{background:#081929e8;border:1px solid #325b7b;border-radius:19px}
 .element.clock{font-weight:850;letter-spacing:-3px;line-height:1}
 .element.date{letter-spacing:2px;font-weight:650}.element.brand{letter-spacing:3px;font-size:11px}
@@ -28,9 +29,9 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 @media(max-width:600px){main{display:flex;flex-direction:column}.panel{width:100%}.canvas-wrap{justify-content:start;overflow:auto}.stage{order:0}}
 </style></head><body>
 <header><div><h1>WatchWit Studio <small>· Beta</small></h1><small>Amazfit Balance 2 · 480 × 480 px · Visual editor</small></div>
-<div class="actions"><button id="new">New</button><button id="guides">Guides</button><button id="undo">Undo</button><button id="save">Save locally</button><button id="export">Export JSON</button><button id="png">Export PNG preview</button><label class="file-button">Import JSON <input hidden id="import" type="file" accept=".json,application/json"></label></div></header>
+<div class="actions"><button id="new">New</button><button id="reference">Load approved reference</button><button id="guides">Guides</button><button id="undo">Undo</button><button id="save">Save locally</button><button id="export">Export JSON</button><button id="png">Export PNG preview</button><label class="file-button">Import JSON <input hidden id="import" type="file" accept=".json,application/json"></label></div></header>
 <main>
-<section class="panel"><h2>Add components</h2><button class="preset" data-add="clock">＋ Hero clock</button><button class="preset" data-add="card">＋ Complication card</button><button class="preset" data-add="date">＋ Date header</button><button class="preset" data-add="brand">＋ Brand label</button>
+<section class="panel"><h2>Add components</h2><button class="preset" data-add="clock">＋ Hero clock</button><button class="preset" data-add="card">＋ Complication card</button><button class="preset" data-add="gauge">＋ Circular gauge</button><button class="preset" data-add="date">＋ Date header</button><button class="preset" data-add="brand">＋ Brand label</button>
 <h2 style="margin-top:20px">Layers</h2><div id="layers"></div><p class="muted">Drag to position. Click an element to edit it. Arrow keys move by 1px; Shift + arrow moves by 10px.</p></section>
 <section class="panel stage"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Design canvas</h2><small id="count"></small></div><div class="canvas-wrap"><div id="watch" class="guides" aria-label="480 by 480 round watchface editor"></div></div><div class="notice">The dashed circle is a safe-area guide. Exported JSON is a design specification, not yet a Zepp ZPK.</div></section>
 <section class="panel"><h2>Properties</h2><div id="properties"><p class="muted">Select an element.</p></div>
@@ -39,7 +40,7 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 </section></main><footer>Design → Validate → Export JSON. Device rendering must still be reviewed in Zepp.</footer>
 <script>
 "use strict";
-const SIZE=480, SAFE=18, TYPES=['card','clock','date','brand'];
+const SIZE=480, SAFE=18, TYPES=['card','gauge','clock','date','brand'];
 const $=id=>document.getElementById(id);
 let model,selected=null,history=[],drag=null,scenario='normal';
 const sample=()=>({schemaVersion:1,device:'Amazfit Balance 2',canvas:{width:480,height:480,round:true,safeInset:18},elements:[
@@ -64,15 +65,32 @@ function validate(){
  const r=rectangle(e);
  if([e.x,e.y,e.w,e.h].some(n=>!Number.isFinite(n))||e.w<8||e.h<8){errors.push(e.id+': invalid dimensions');invalid.add(e.id);return}
  const pts=[[r.l,r.t],[r.r,r.t],[r.l,r.b],[r.r,r.b]];
- if(pts.some(([x,y])=>Math.hypot(x-240,y-240)>240-SAFE)){errors.push(e.id+': outside circular safe area');invalid.add(e.id)}
- const approx=viewValue(e).length*e.fontSize*(e.type==='clock'?.55:.56);
+ const inset=model.canvas?.safeInset??SAFE;
+ if(e.type==='gauge'){
+   const radius=Math.max(e.w,e.h)/2;
+   if(Math.hypot(e.x+e.w/2-240,e.y+e.h/2-240)+radius>240-inset){
+     errors.push(e.id+': circular gauge outside screen safe area');invalid.add(e.id)
+   }
+ }else if(pts.some(([x,y])=>Math.hypot(x-240,y-240)>240-inset)){
+   errors.push(e.id+': outside circular safe area');invalid.add(e.id)
+ }
+ const approx=viewValue(e).length*e.fontSize*(e.type==='clock'?.47:.56);
  if(approx>e.w-6){errors.push(e.id+': value may exceed box width');invalid.add(e.id)}
- if(e.type==='card'&&e.h<75){errors.push(e.id+': card may clip icon/value/label');invalid.add(e.id)}
+ if((e.type==='card'||e.type==='gauge')&&e.h<75){errors.push(e.id+': card may clip icon/value/label');invalid.add(e.id)}
  });
  for(let i=0;i<model.elements.length;i++)for(let j=i+1;j<model.elements.length;j++){
  const a=model.elements[i],b=model.elements[j],A=rectangle(a),B=rectangle(b);
  const dx=Math.max(A.l-B.r,B.l-A.r,0),dy=Math.max(A.t-B.b,B.t-A.b,0);
- if(dx===0&&dy===0){errors.push(a.id+' overlaps '+b.id);invalid.add(a.id);invalid.add(b.id)}
+ let collide=dx===0&&dy===0;
+ if(a.type==='gauge'&&b.type==='gauge'){
+   collide=Math.hypot(a.x+a.w/2-b.x-b.w/2,a.y+a.h/2-b.y-b.h/2)<(Math.max(a.w,a.h)+Math.max(b.w,b.h))/2
+ }else if(a.type==='gauge'||b.type==='gauge'){
+   const circle=a.type==='gauge'?a:b,box=a.type==='gauge'?B:A;
+   const cx=circle.x+circle.w/2,cy=circle.y+circle.h/2;
+   const qx=Math.max(box.l,Math.min(cx,box.r)),qy=Math.max(box.t,Math.min(cy,box.b));
+   collide=Math.hypot(cx-qx,cy-qy)<Math.max(circle.w,circle.h)/2
+ }
+ if(collide){errors.push(a.id+' overlaps '+b.id);invalid.add(a.id);invalid.add(b.id)}
  }
  return {errors,invalid};
 }
@@ -82,7 +100,7 @@ function render(){
  model.elements.forEach(e=>{
  const el=document.createElement('div');el.className='element '+e.type+(e.type==='card'?' card':'')+(selected===e.id?' selected':'')+(invalid.has(e.id)?' invalid':'');
  el.style.cssText='left:'+e.x+'px;top:'+e.y+'px;width:'+e.w+'px;height:'+e.h+'px;font-size:'+e.fontSize+'px;color:'+e.color;
- if(e.type==='card')el.innerHTML='<span class="symbol" style="font-size:20px;color:'+esc(e.color)+'">'+esc(e.symbol||'•')+'</span><span class="value">'+esc(viewValue(e))+'</span><span class="subtitle">'+esc(e.label)+'</span>';
+ if(e.type==='card'||e.type==='gauge')el.innerHTML='<span class="symbol" style="font-size:20px;color:'+esc(e.color)+'">'+esc(e.symbol||'•')+'</span><span class="value">'+esc(viewValue(e))+'</span><span class="subtitle">'+esc(e.label)+'</span>';
  else el.textContent=viewValue(e);
  el.dataset.id=e.id;el.addEventListener('pointerdown',startDrag);
  $('watch').append(el);
@@ -104,7 +122,16 @@ function startDrag(ev){if(ev.button!==0)return;const e=model.elements.find(x=>x.
 function moveDrag(ev){if(!drag)return;const e=model.elements.find(x=>x.id===drag.id);if(!e)return;const rect=$('watch').getBoundingClientRect(),scale=SIZE/rect.width;e.x=Math.round(drag.ex+(ev.clientX-drag.x)*scale);e.y=Math.round(drag.ey+(ev.clientY-drag.y)*scale);const node=Array.from($('watch').children).find(n=>n.dataset?.id===e.id);if(node){node.style.left=e.x+'px';node.style.top=e.y+'px'}}
 function stopDrag(){drag=null;document.removeEventListener('pointermove',moveDrag);render()}
 document.addEventListener('keydown',ev=>{const e=current();if(!e||/input|select|textarea/i.test(document.activeElement.tagName))return;const d=ev.shiftKey?10:1,move={ArrowUp:[0,-d],ArrowDown:[0,d],ArrowLeft:[-d,0],ArrowRight:[d,0]}[ev.key];if(move){ev.preventDefault();snapshot();e.x+=move[0];e.y+=move[1];render()}});
-document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snapshot();const type=b.dataset.add,id=type+'-'+Date.now().toString(36).slice(-6);model.elements.push({id,type,x:170,y:205,w:140,h:85,value:type==='clock'?'10:08':type==='date'?'OCT 24':type==='brand'?'WATCHWIT':'123',label:type==='card'?'NEW':'',symbol:type==='card'?'✦':'',color:'#8dd9ff',fontSize:type==='clock'?65:27});selected=id;render()});
+document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snapshot();const type=b.dataset.add,id=type+'-'+Date.now().toString(36).slice(-6);model.elements.push({id,type,x:170,y:205,w:140,h:85,value:type==='clock'?'10:08':type==='date'?'OCT 24':type==='brand'?'WATCHWIT':'123',label:(type==='card'||type==='gauge')?'NEW':'',symbol:(type==='card'||type==='gauge')?'✦':'',color:'#8dd9ff',fontSize:type==='clock'?65:27});selected=id;render()});
+$('reference').onclick=async()=>{
+ try{
+  const resp=await fetch('./reference.json',{cache:'no-store'});
+  if(!resp.ok)throw Error('Reference layout unavailable');
+  const data=await resp.json();
+  if(data.schemaVersion!==1||data.canvas?.width!==480||!Array.isArray(data.elements)||data.elements.some(e=>!TYPES.includes(e.type)))throw Error('Unsupported reference design');
+  snapshot();model=data;selected=null;scenario='normal';$('scenario').value='normal';render();
+ }catch(error){alert('Cannot load reference: '+error.message)}
+};
 $('guides').onclick=()=>$('watch').classList.toggle('guides');$('new').onclick=()=>{snapshot();model=sample();selected=null;render()};
 $('undo').onclick=()=>{if(history.length){model=JSON.parse(history.pop());selected=null;render()}};
 $('save').onclick=()=>{localStorage.setItem('watchwit-studio-draft-v1',JSON.stringify(model));$('save').textContent='Saved ✓';setTimeout(()=>$('save').textContent='Save locally',1400)};
@@ -118,9 +145,9 @@ $('png').onclick=()=>{
  ctx.strokeStyle='#4e7897';ctx.lineWidth=2;ctx.beginPath();ctx.arc(240,240,237,0,Math.PI*2);ctx.stroke();
  model.elements.forEach(e=>{
   const x=e.x,y=e.y,w=e.w,h=e.h;ctx.save();
-  if(e.type==='card'){ctx.fillStyle='#081929';ctx.strokeStyle='#325b7b';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x,y,w,h,19);ctx.fill();ctx.stroke()}
+  if(e.type==='card'||e.type==='gauge'){ctx.fillStyle='#081929';ctx.strokeStyle='#325b7b';ctx.lineWidth=2;ctx.beginPath();if(e.type==='gauge')ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2);else ctx.roundRect(x,y,w,h,19);ctx.fill();ctx.stroke()}
   ctx.textAlign='center';ctx.textBaseline='middle';const cx=x+w/2;
-  if(e.type==='card'){
+  if(e.type==='card'||e.type==='gauge'){
    ctx.fillStyle=e.color;ctx.font='20px system-ui';ctx.fillText(e.symbol||'•',cx,y+16,w-8);
    ctx.fillStyle='#f5f9ff';ctx.font='750 '+e.fontSize+'px system-ui';ctx.fillText(viewValue(e),cx,y+43,w-6);
    ctx.fillStyle='#adc1d5';ctx.font='12px system-ui';ctx.fillText(e.label,cx,y+h-12,w-6);
