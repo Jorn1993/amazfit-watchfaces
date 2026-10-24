@@ -191,20 +191,53 @@ def round_crop(img):
 
 
 def make_backgrounds():
+    """WatchWit Orbit: original, restrained orbital graphic system."""
     paths = {}
     for theme in THEME_NAMES:
-        img = Image.new("RGBA", (K.W * S, K.W * S), (0, 0, 0, 255))
-        d = ImageDraw.Draw(img)
-        draw_dividers(d, theme)
-        draw_band(img, theme)
-        d = ImageDraw.Draw(img)
-        draw_separators(d, K.THEMES[theme]["divider"], theme)
-        paths[theme] = save(down(round_crop(img)).convert("RGB"), f"bg/{theme}.png")
-        # always-on background: separators only, very dim
-        aod = Image.new("RGBA", (K.W * S, K.W * S), (0, 0, 0, 0))
-        dim = lerp(K.THEMES[theme]["divider"], (0, 0, 0), 0.25)
-        draw_separators(ImageDraw.Draw(aod), dim)
-        paths[f"aod_{theme}"] = save(down(aod), f"aod/bg_{theme}.png")
+        t = K.THEMES[theme]
+        accented = theme in ("color", "mix")
+        blue = (91, 191, 254) if accented else t["accent"]
+        peach = (246, 178, 111) if accented else t["accent"]
+        mint = (94, 226, 187) if accented else t["accent"]
+        bg = Image.new("RGB", (K.W*S, K.W*S), (2, 7, 17))
+        d = ImageDraw.Draw(bg)
+        # A smooth dark radial field, using no frame or ornamental dividers.
+        for radius in range(239, 20, -1):
+            n = (239-radius)/239
+            col = lerp((3,8,19), (11,30,48), n * .65)
+            d.ellipse([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],fill=col)
+        # Subtle concentric orbits, separated from any live complication.
+        for radius, shade, width in ((232,(51,84,109),2),
+                                     (223,(21,50,76),1),
+                                     (155,(17,47,72),1)):
+            d.arc([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],
+                  0, 359, fill=shade, width=P(width))
+        # Three delicate arc sweeps provide deliberate colour without a neon bezel.
+        for radius,start,end,col in ((231,208,271,blue),
+                                     (231,287,332,peach),
+                                     (231,44,120,mint)):
+            d.arc([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],
+                  start,end,fill=col,width=P(4))
+        # Six horizontally balanced capsules, not circular Dashboard pods.
+        for idx,(cx,cy) in enumerate(((106,103),(240,103),(374,103),
+                                     (106,373),(240,373),(374,373))):
+            x1,y1,x2,y2=cx-61,cy-49,cx+61,cy+49
+            d.rounded_rectangle([P(x1),P(y1),P(x2),P(y2)],radius=P(22),
+                                fill=(6,17,32),outline=(34,65,88),width=P(1))
+            col=(blue,peach,mint)[idx%3]
+            d.rounded_rectangle([P(cx-22),P(cy-45),P(cx+22),P(cy-42)],
+                                radius=P(2),fill=col)
+        # Hero time panel is mostly open space to maximize legibility.
+        d.rounded_rectangle([P(49),P(171),P(431),P(313)],radius=P(26),
+                            fill=(4,13,26),outline=(40,82,108),width=P(2))
+        d.line([P(92),P(186),P(388),P(186)],fill=(28,62,84),width=P(1))
+        # Small brand marker positioned below the lower modules.
+        Fp=F.pil_font(str(F.TEXT_FONT),12,S)
+        d.text((P(240),P(452)),"WATCHWIT  /  ORBIT",font=Fp,
+               fill=(130,161,186),anchor="mm")
+        paths[theme]=save(down(round_crop(bg.convert("RGBA"))).convert("RGB"),f"bg/{theme}.png")
+        aod=Image.new("RGBA",(K.W*S,K.W*S),(0,0,0,0))
+        paths[f"aod_{theme}"]=save(down(aod),f"aod/bg_{theme}.png")
     return paths
 
 
