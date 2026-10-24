@@ -661,7 +661,7 @@ def build_layout(tm, bg_paths):
         part = elements[name]
         cx = part["x"] + part["w"] / 2
         icon_cy = part["y"] + 23
-        value_cy = part["y"] + 53
+        value_cy = part["y"] + 51
         centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
