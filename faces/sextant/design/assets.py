@@ -334,6 +334,16 @@ def make_time_digits():
                 gd.line([(0, y), (m.width, y)], fill=lerp(c_top, c_bot, tt))
             img = grad.convert("RGBA"); img.putalpha(m)
             save(down(img), f"time/{name}/{ch}.png")
+            if name == "color":
+                cyan = Image.new("RGB", m.size)
+                cdraw = ImageDraw.Draw(cyan)
+                for yy in range(m.height):
+                    blend = yy / max(1, m.height - 1)
+                    cdraw.line([(0, yy), (m.width, yy)],
+                               fill=lerp((55, 225, 253), (29, 124, 250), blend))
+                cyan = cyan.convert("RGBA")
+                cyan.putalpha(m)
+                save(down(cyan), f"time_minute/{name}/{ch}.png")
         # colon
         acc = K.THEMES[name]["accent"]
         cimg = Image.new("RGBA", (colon_w * S, cell_h * S), (0, 0, 0, 0))
