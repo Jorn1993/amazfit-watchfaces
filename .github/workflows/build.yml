@@ -142,11 +142,11 @@ jobs:
           p=Path('preview-source/faces/sextant/app.json')
           data=json.loads(p.read_text())
           data['app']['appId']=21319241
-          data['app']['appName']='WatchWit Preview v0.3.0'
-          data['app']['version']={'code':1,'name':'0.3.0-preview'}
-          data['app']['description']='WatchWit visual redesign preview — separate installation from the stable face.'
+          data['app']['appName']='WatchWit Dashboard v0.3.0'
+          data['app']['version']={'code':1,'name':'0.3.0'}
+          data['app']['description']='WatchWit Dashboard — independent watchface, currently an early design build.'
           for lang in data['i18n'].values():
-              lang['appName']='WatchWit Preview v0.3.0'
+              lang['appName']='WatchWit Dashboard v0.3.0'
           p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
@@ -161,8 +161,8 @@ jobs:
           with zipfile.ZipFile(p) as z, zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
               m=json.loads(d.read('app.json'))['app']
               assert m['appId']==21319241,m
-              assert m['appName']=='WatchWit Preview v0.3.0',m
-              assert m['version']['name']=='0.3.0-preview',m
+              assert m['appName']=='WatchWit Dashboard v0.3.0',m
+              assert m['version']['name']=='0.3.0',m
           print('Validated separate WatchWit preview package:',p.stat().st_size,'bytes')
           PY
 
@@ -182,20 +182,20 @@ jobs:
           card.paste(src,((w-src.width)//2,150))
           dr=ImageDraw.Draw(card)
           fonts=Path('/usr/share/fonts/truetype/dejavu')
-          dr.text((w//2,35),'WatchWit Preview',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
+          dr.text((w//2,35),'WatchWit Dashboard',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
           dr.text((w//2,95),'Version 0.3.0',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
-          card.save(folder/'WatchWit-Preview-v0.3.0-QR.png')
+          card.save(folder/'WatchWit-Dashboard-v0.3.0-QR.png')
           (folder/'index.html').write_text("""<!doctype html><html lang="en"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit v0.3.0 Preview</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Dashboard v0.3.0</title>
           <style>body{font:16px system-ui;background:#101724;color:#ecf2fa;line-height:1.6;max-width:620px;padding:24px;margin:35px auto}
           img{width:min(100%,350px);border-radius:12px}a{color:#99c5ff}
           .button{display:inline-block;padding:12px 18px;margin:8px 8px 8px 0;border-radius:12px;background:#3076dd;color:white;text-decoration:none}</style></head>
-          <body><h1>WatchWit v0.3.0</h1><p>Visual redesign preview • Separate installation from stable WatchWit</p>
-          <p><img src="WatchWit-Preview-v0.3.0-QR.png" alt="WatchWit preview installation QR"></p>
-          <p><a class="button" href="WatchWit-Preview-v0.3.0-QR.png" download="WatchWit-Preview-v0.3.0-QR.png">Save QR</a>
+          <body><h1>WatchWit Dashboard v0.3.0</h1><p>Early dashboard development build. Different watchface and app ID from stable WatchWit; concept layout still in progress.</p>
+          <p><img src="WatchWit-Dashboard-v0.3.0-QR.png" alt="WatchWit Dashboard installation QR"></p>
+          <p><a class="button" href="WatchWit-Dashboard-v0.3.0-QR.png" download="WatchWit-Dashboard-v0.3.0-QR.png">Save QR</a>
           <a class="button" href="watchwit-preview.zpk">Download preview ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
-          <p><a href="../">Back to stable WatchWit</a></p></body></html>""")
+          <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
           PY
 
