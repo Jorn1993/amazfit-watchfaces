@@ -42,7 +42,7 @@ def make():
     img = asset("bg/color.png")
     draw = ImageDraw.Draw(img)
     samples = ["8,560", "420", "85%", "24°", "6.2", "72"]
-    labels = ["STEPS", "CAL", "BATTERY", "PARTLY CLOUDY", "KM", "BPM"]
+    labels = ["STEPS", "CAL", "BATTERY", "WEATHER", "KM", "BPM"]
     symbols = ["steps", "calories", "battery", "weather_0", "distance", "heart"]
     for idx, (slot, value, label, icon) in enumerate(zip(DATA["slots"], samples, labels, symbols)):
         loc = slot["icon"]
