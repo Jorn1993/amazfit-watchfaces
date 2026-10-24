@@ -1,0 +1,29 @@
+name: Retire abandoned Dashboard branch
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retire-dashboard-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove abandoned Dashboard branch only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/result.json -w '%{http_code}' \
+            -X DELETE -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/git/refs/heads/visual-refinement-v0.3")
+          cat /tmp/result.json
+          if [[ "$code" != "204" && "$code" != "404" ]]; then
+            echo "Failed to delete branch: HTTP $code"
+            exit 1
+          fi
+          echo "Old Dashboard branch deleted (or already absent)."
