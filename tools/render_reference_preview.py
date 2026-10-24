@@ -42,7 +42,7 @@ def make():
     img = asset("bg/color.png")
     draw = ImageDraw.Draw(img)
     samples = ["8,560", "420", "85%", "24°", "6.2", "72"]
-    labels = ["STEPS", "CAL", "BATTERY", "WEATHER", "KM", "BPM"]
+    labels = ["STEPS", "CAL", "BATTERY", "PARTLY CLOUDY", "KM", "BPM"]
     symbols = ["steps", "calories", "battery", "weather_0", "distance", "heart"]
     for idx, (slot, value, label, icon) in enumerate(zip(DATA["slots"], samples, labels, symbols)):
         loc = slot["icon"]
@@ -52,7 +52,7 @@ def make():
         draw_text(draw, value, valbox, "#f3f7fd")
         cx = slot["cx"]
         y = 139 if idx in (0,1,5) else 401
-        textfont = font(15)
+        textfont = font(14 if idx == 3 else 15)
         width = draw.textbbox((0,0), label, font=textfont)[2]
         assert width < 106, label
         draw.text((cx,y+8.5),label,font=textfont,fill="#a7b9ce",anchor="mm")
