@@ -1,19 +1,19 @@
 {
   "configVersion": "v3",
   "app": {
-    "appId": 21319240,
-    "appName": "WatchWit v0.2.1",
+    "appId": 21319242,
+    "appName": "WatchWit Orbit v0.1.0",
     "appType": "watchface",
     "version": {
-      "code": 5,
-      "name": "0.2.1"
+      "code": 1,
+      "name": "0.1.0"
     },
     "icon": "icon.png",
     "vender": "WatchWit",
     "cover": [
       "cover.png"
     ],
-    "description": "WatchWit: customizable 480x480 watchface with Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes."
+    "description": "WatchWit Orbit: independent minimalist celestial data watchface, not a Dashboard variant."
   },
   "runtime": {
     "apiVersion": {
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "WatchWit v0.2.1"
+      "appName": "WatchWit Orbit v0.1.0"
     },
     "zh-CN": {
-      "appName": "WatchWit v0.2.1"
+      "appName": "WatchWit Orbit v0.1.0"
     },
     "zh-TW": {
-      "appName": "WatchWit v0.2.1"
+      "appName": "WatchWit Orbit v0.1.0"
     }
   },
   "defaultLanguage": "en-US",
