@@ -21,7 +21,7 @@ for idx,name in enumerate(order):
  boxes={
   'icon':(icon['x'],icon['y'],icon['size'],icon['size']),
   'value':(val['x'],val['y'],val['w'],val['h']),
-  'caption':(cx-24,p['y']+67,48,13)
+  'caption':(cx-26,p['y']+66,52,13)
  }
  for kind,rect in boxes.items():
   if not inside(rect,cx,cy,radius):
