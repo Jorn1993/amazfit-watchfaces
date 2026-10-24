@@ -559,91 +559,24 @@ def rotate_corners(centres, slots):
 
 def build_layout(tm, bg_paths):
     L = {}
-    segs = G.ring_segments()
-    # ---------------------------------------------------------------- gauges
-    gauges = []
-    markers = make_markers()
-    for slot, si in enumerate(G.SLOT_SEGMENT):
-        seg_ticks = list(G.segment_ticks(segs[si]))
-        if si in (0, 2, 3, 5):
-            # corner gauges start at their divider: one more tick there
-            step = K.TICK_STEP if seg_ticks[1] < seg_ticks[0] else -K.TICK_STEP
-            seg_ticks.insert(0, seg_ticks[0] + step)
-        lo_z, hi_z = sorted((G.to_zepp(seg_ticks[0]), G.to_zepp(seg_ticks[-1])))
-        if hi_z - lo_z > 180:                          # the top gauge straddles 0
-            lo_z, hi_z = hi_z - 360, lo_z
-        mine = [m for m in markers if lo_z - 0.01 <= ((m["a"] + 180 - (lo_z + hi_z) / 2) % 360 - 180 + (lo_z + hi_z) / 2) <= hi_z + 0.01]
-        near = {round(m["a"] - 0.5) % 360 for m in mine if m["a"] % 1} | {round(m["a"] + 0.5) % 360 for m in mine if m["a"] % 1}
-        ticks, marker_at = [], None
-        for t in seg_ticks:
-            z = round(G.to_zepp(t)) % 360
-            arc = G.tick_arc(t)
-            if arc is None or z in near or z in {(round(m["a"] - 1.5)) % 360 for m in mine if m["a"] % 1} | {(round(m["a"] + 1.5)) % 360 for m in mine if m["a"] % 1}:
-                if marker_at is None:
-                    marker_at = len(ticks)     # the marker sits here
-                continue
-            major = round(t) % K.TICK_MAJOR_EVERY == 0
-            L_ = K.TICK_MAJOR if major else K.TICK_MINOR
-            ticks.append(dict(s=arc[0], e=arc[1], len=L_,
-                              r_center=round(K.RING_R - L_ / 2, 1), r_outer=K.RING_R))
-        g = dict(ticks=ticks)
-        if mine and marker_at is not None:
-            m = mine[0]
-            g["marker"] = dict(k=m["k"], x=m["x"], y=m["y"], after=marker_at, base="brass")
-        gauges.append(g)
-    L["markers"] = dict(fixed=[m for m in markers if not any(
-        g.get("marker", {}).get("k") == m["k"] for g in gauges)])
-    L["gauge"] = dict(segments=gauges)
+    # Orbit deliberately has no Classic outer gauge widgets: the accent arcs
+    # are static artwork, keeping the face clean and battery-conscious.
+    L["markers"] = dict(fixed=[])
+    L["gauge"] = dict(segments=[dict(ticks=[]) for _ in range(6)])
 
     # ---------------------------------------------------------------- complications
-    side_x, w99, side_gap = solve_side_x()
+    side_x, w99, side_gap = 106, 100, 12
     vh = digit_h(K.VALUE_PX)
-    top_value_cy = K.ELBOW_Y + vh / 2
-    top_icon_cy = K.ELBOW_Y - K.ICON_GAP - K.ICON_PX / 2
-    # a value's box runs from the digits' top to a comma's bottom, so a value above its icon
-    # keeps the full gap even with a thousands separator
-    dsc = F.ink_extent(F.TEXT_FONT, K.VALUE_PX, ",")[3]
     slots = []
     centres = [
-        (side_x, top_icon_cy, top_value_cy),                         # TL
-        (K.W - side_x, top_icon_cy, top_value_cy),                   # TR
-        (side_x, K.W - top_icon_cy + dsc, K.W - top_value_cy),       # BL
-        None,                                                        # BM (below)
-        (K.W - side_x, K.W - top_icon_cy + dsc, K.W - top_value_cy), # BR
-        None,                                                        # TM (below)
+        (106, 78, 118), (374, 78, 118),
+        (106, 347, 391), (240, 347, 391),
+        (374, 347, 391), (240, 78, 118),
     ]
-    # status-icon pairs hug the band in the top- and bottom-middle sections; those
-    # sections' metrics move out so their outer edge is as far from the ticks as the
-    # corner icons are (nearest icon-box corner to the ticks' inner end)
-    tick_in = K.RING_R - K.TICK_MAJOR
-    cx_, icy_ = centres[0][0], centres[0][1]
-    corners_ = [(cx_ + dx, icy_ + dy) for dx in (-K.ICON_PX / 2, K.ICON_PX / 2) for dy in (-K.ICON_PX / 2, K.ICON_PX / 2)]
-    rim_gap = tick_in - max(math.hypot(x - K.C, y - K.C) for x, y in corners_)
-    gs = K.GLANCE_SIZE
-    # the widest value ("99,999") keeps rim_gap from the ticks at its outer corners
-    reach = math.sqrt((tick_in - rim_gap) ** 2 - (w99 / 2) ** 2)
-    # TM: value (box incl. comma depth) on top, icon below it, status pair at the band
-    v_top = K.C - reach
-    tm_v = v_top + vh / 2
-    tm_i = v_top + vh + dsc + K.ICON_GAP + K.ICON_PX / 2
-    centres[5] = (K.C, tm_i, tm_v)
-    # BM: mirror (icon at the top, value below; box bottom incl. comma depth)
-    v_bot = K.C + reach
-    bm_v = v_bot - dsc - vh / 2
-    bm_i = bm_v - vh / 2 - K.ICON_GAP - K.ICON_PX / 2
-    centres[3] = (K.C, bm_i, bm_v)
-    sections_rows = dict(top=K.BAND_IN[0] - K.SECTION_GAP - gs / 2, bottom=K.BAND_IN[1] + K.SECTION_GAP + gs / 2)
-    # a rule midway between each status pair and its metric's icon box
-    ry_t = ((tm_i + K.ICON_PX / 2) + (sections_rows["top"] - gs / 2)) / 2
-    ry_b = ((bm_i - K.ICON_PX / 2) + (sections_rows["bottom"] + gs / 2)) / 2
+    sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
     L["rules"] = []
-    for name, y in (("t", ry_t), ("b", ry_b)):
-        pts = rule_points(y, name == "t")
-        RULE_PTS[name] = pts
-        pad = K.LINE_W
-        L["rules"].append(dict(x=math.floor(min(p[0] for p in pts) - pad), y=math.floor(min(p[1] for p in pts) - pad), src=name))
-    L["_notes_rim_gap"] = round(rim_gap, 1)
+    L["_notes_rim_gap"] = 16
     asc, desc = F.vmetrics(str(F.TEXT_FONT))
     for cx, icy, vcy in centres:
         vbox = text_box(K.VALUE_PX, cx, vcy, 132)
@@ -682,9 +615,9 @@ def build_layout(tm, bg_paths):
             month=text_box(small, cx, top + ch21 + gap1 + dh42 + gap2 + ch21 / 2, 100, "HEOTX"),
         )
     side_l = K.SEP_X[0] / 2
-    side_r = (K.SEP_X[1] + K.W) / 2
+    side_r = 389
     top = K.MID - stack_h / 2
-    L["date"] = date_lines(side_l, top)
+    L["date"] = date_lines(91, K.MID - stack_h / 2)
     L["theme_edit"] = dict(x=round(side_l - 44), y=round(top - 10), w=88, h=round(stack_h + 20))
 
     bh = digit_h(K.BATTERY_VALUE_PX)
@@ -854,7 +787,7 @@ def generate():
             continue
         shutil.rmtree(child) if child.is_dir() else child.unlink()
     F.write_watch_font(OUT / "fonts" / F.TEXT_FONT_SUBSET_NAME)
-    K.TIME_PX = solve_time_px()
+    K.TIME_PX = 112
     bg = make_backgrounds()
     tm = make_time_digits()
     make_icons()
