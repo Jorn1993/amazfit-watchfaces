@@ -1,5 +1,5 @@
 name: Build WatchWit and installation QR
-# Preview source: watchwit-orbit (isolated sensor-driven gauges and overlap-checked geometry) (six-pod Reference with battery picker previews)
+# Preview source: watchwit-orbit (isolated live gauges, render matches runtime captions) (six-pod Reference with battery picker previews)
 
 on:
   push:
