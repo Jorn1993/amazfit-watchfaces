@@ -660,8 +660,8 @@ def build_layout(tm, bg_paths):
     for name in slot_names:
         part = elements[name]
         cx = part["x"] + part["w"] / 2
-        icon_cy = part["y"] + (8 if name in ("battery", "weather", "distance") else 20)
-        value_cy = part["y"] + (48 if name in ("battery", "weather", "distance") else 56)
+        icon_cy = part["y"] + 23
+        value_cy = part["y"] + 53
         centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
@@ -669,7 +669,7 @@ def build_layout(tm, bg_paths):
     L["_notes_rim_gap"] = 16
     asc, desc = F.vmetrics(str(F.TEXT_FONT))
     for cx, icy, vcy in centres:
-        vbox = text_box(K.VALUE_PX, cx, vcy, 100)
+        vbox = text_box(K.VALUE_PX, cx, vcy, 68)
         # unit box: shares the value's baseline
         v_line_h = (asc + desc) * K.VALUE_PX
         baseline = vbox["y"] + (vbox["h"] - v_line_h) / 2 + asc * K.VALUE_PX
