@@ -191,53 +191,92 @@ def round_crop(img):
 
 
 def make_backgrounds():
-    """WatchWit Orbit: original, restrained orbital graphic system."""
+    """Premium six-gauge WatchWit design, rendered at native 480 px.
+
+    The Studio blueprint supplies widget positions. Backgrounds contain only
+    decorative graphics: never sample time, sensor numbers, or icon text.
+    """
+    import cairosvg
+    import io
     paths = {}
     for theme in THEME_NAMES:
         t = K.THEMES[theme]
-        accented = theme in ("color", "mix")
-        blue = (91, 191, 254) if accented else t["accent"]
-        peach = (246, 178, 111) if accented else t["accent"]
-        mint = (94, 226, 187) if accented else t["accent"]
-        bg = Image.new("RGB", (K.W*S, K.W*S), (2, 7, 17))
-        d = ImageDraw.Draw(bg)
-        # A smooth dark radial field, using no frame or ornamental dividers.
-        for radius in range(239, 20, -1):
-            n = (239-radius)/239
-            col = lerp((3,8,19), (11,30,48), n * .65)
-            d.ellipse([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],fill=col)
-        # Subtle concentric orbits, separated from any live complication.
-        for radius, shade, width in ((232,(51,84,109),2),
-                                     (223,(21,50,76),1),
-                                     (155,(17,47,72),1)):
-            d.arc([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],
-                  0, 359, fill=shade, width=P(width))
-        # Three delicate arc sweeps provide deliberate colour without a neon bezel.
-        for radius,start,end,col in ((231,208,271,blue),
-                                     (231,287,332,peach),
-                                     (231,44,120,mint)):
-            d.arc([P(240-radius),P(240-radius),P(240+radius),P(240+radius)],
-                  start,end,fill=col,width=P(4))
-        # Six horizontally balanced capsules, not circular Dashboard pods.
-        for idx,(cx,cy) in enumerate(((106,103),(240,103),(374,103),
-                                     (106,373),(240,373),(374,373))):
-            x1,y1,x2,y2=cx-61,cy-49,cx+61,cy+49
-            d.rounded_rectangle([P(x1),P(y1),P(x2),P(y2)],radius=P(22),
-                                fill=(6,17,32),outline=(34,65,88),width=P(1))
-            col=(blue,peach,mint)[idx%3]
-            d.rounded_rectangle([P(cx-22),P(cy-45),P(cx+22),P(cy-42)],
-                                radius=P(2),fill=col)
-        # Hero time panel is mostly open space to maximize legibility.
-        d.rounded_rectangle([P(49),P(171),P(431),P(313)],radius=P(26),
-                            fill=(4,13,26),outline=(40,82,108),width=P(2))
-        # The date/battery header occupies this strip: no line through text.
-        # Small brand marker positioned below the lower modules.
-        Fp=F.pil_font(str(F.TEXT_FONT),12,S)
-        d.text((P(240),P(452)),"WATCHWIT  /  ORBIT",font=Fp,
-               fill=(130,161,186),anchor="mm")
-        paths[theme]=save(down(round_crop(bg.convert("RGBA"))).convert("RGB"),f"bg/{theme}.png")
-        aod=Image.new("RGBA",(K.W*S,K.W*S),(0,0,0,0))
-        paths[f"aod_{theme}"]=save(down(aod),f"aod/bg_{theme}.png")
+        color_mode = theme in ('color', 'mix')
+        accent = '#%02x%02x%02x' % t['accent']
+        def tint(value):
+            return value if color_mode else accent
+        aqua, warm, red, green = [tint(x) for x in
+                                  ('#24cff9','#ffb244','#ff6268','#42e67c')]
+        svg = ["""<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480">
+        <defs>
+          <radialGradient id="base"><stop stop-color="#183149"/>
+            <stop offset=".66" stop-color="#081929"/>
+            <stop offset="1" stop-color="#02070f"/></radialGradient>
+          <radialGradient id="pod" cx=".44" cy=".23" r=".9"><stop stop-color="#172a3f"/>
+            <stop offset=".46" stop-color="#081827"/><stop offset="1" stop-color="#010710"/></radialGradient>
+          <linearGradient id="panel" x2="0" y2="1">
+            <stop stop-color="#122d43"/><stop offset=".08" stop-color="#030d1b"/>
+            <stop offset=".87" stop-color="#020a16"/><stop offset="1" stop-color="#17334c"/>
+          </linearGradient>
+          <linearGradient id="shine" x2="0" y2="1"><stop stop-color="#67dfff"/>
+            <stop offset=".48" stop-color="#259cff"/><stop offset="1" stop-color="#0861d1"/></linearGradient>
+        </defs>
+        <circle cx="240" cy="240" r="239" fill="#01050b"/>
+        <circle cx="240" cy="240" r="237" stroke="#7b94a9" stroke-width="1.2" fill="url(#base)"/>
+        <circle cx="240" cy="240" r="229" stroke="#20374e" stroke-width="2" fill="none"/>
+        """]
+        def seg(cx,cy,r,aa,bb,width,colour,op=1):
+            x1=cx+r*math.cos(math.radians(aa)); y1=cy+r*math.sin(math.radians(aa))
+            x2=cx+r*math.cos(math.radians(bb)); y2=cy+r*math.sin(math.radians(bb))
+            svg.append(f'<path d="M{x1:.2f},{y1:.2f} A{r},{r} 0 0 1 {x2:.2f},{y2:.2f}" '
+                       f'fill="none" stroke="{colour}" stroke-width="{width}" opacity="{op}"/>')
+        # Complete segmented ring with four intentional coloured sectors.
+        sectors=((192,268,aqua),(280,353,warm),(12,80,aqua),(100,166,green))
+        for angle in range(0,360,7):
+            colour='#39495e'
+            for low,hi,c in sectors:
+                if low <= angle < hi:
+                    colour=c if angle < low+(hi-low)*.76 else '#35485e'
+            seg(240,240,225,angle,angle+5.25,10.3,colour)
+        # The six raised pods. No flat rectangular complication cards.
+        for cx,cy,colour in ((119,108,aqua),(240,108,red),(361,108,warm),
+                             (119,380,green),(240,380,aqua),(361,380,aqua)):
+            svg.extend((
+                f'<circle cx="{cx}" cy="{cy+2}" r="57" fill="#02070d" opacity=".8"/>',
+                f'<circle cx="{cx}" cy="{cy}" r="55" fill="url(#pod)" stroke="#375874" stroke-width="2.6"/>',
+                f'<circle cx="{cx}" cy="{cy}" r="50" fill="#020b16" stroke="#10263b" stroke-width="1.4"/>'))
+            # Decorated upper semicircular gauge with thicker discrete tiles.
+            for j in range(14):
+                angle=197+j*10
+                seg(cx,cy,52,angle,angle+7.2,6.3,colour if j<9 else '#34455c')
+            seg(cx,cy,56,8,161,1.1,'#2e668d',.70)
+        # Central body with shaped shoulder silhouette and cyan inset rails.
+        shoulder=('M 48 171 Q 58 163 81 162 L 139 162 Q 154 161 164 151 '
+                  'Q 172 146 190 146 L 291 146 Q 310 146 317 151 '
+                  'Q 325 161 342 162 L 400 162 Q 421 163 432 172 '
+                  'Q 445 186 445 209 L 445 289 Q 443 307 425 319 '
+                  'Q 409 327 393 327 L 87 327 Q 68 327 54 317 '
+                  'Q 36 307 36 286 L 36 209 Q 36 185 48 171 Z')
+        svg += [f'<path d="{shoulder}" fill="#081726" stroke="#2c4e68" stroke-width="3"/>',
+                f'<path d="{shoulder}" fill="none" stroke="{aqua}" stroke-width="1.2" opacity=".6"/>',
+                '<rect x="48" y="172" width="384" height="141" rx="23" fill="url(#panel)" stroke="#267ea9" stroke-width="2"/>',
+                f'<rect x="43" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>',
+                f'<rect x="432" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>']
+        for yy in (210,223,236,249):
+            for xx in (60,398):
+                svg.append(f'<rect x="{xx}" y="{yy}" width="20" height="2.5" rx="1" fill="#22577d"/>')
+        # Accent underlines between pods, avoiding dynamic text.
+        for xx in (180,300):
+            for yy in (93,361):
+                svg.append(f'<path d="M{xx} {yy}v26" stroke="#7294b1" stroke-width="1" opacity=".75"/>')
+        svg.extend((f'<text x="240" y="453" font-size="16" font-weight="bold" '
+                    f'fill="{aqua}" text-anchor="middle">W</text>',
+                    '<text x="240" y="466" font-size="7.5" letter-spacing="3.4" '
+                    'fill="#afc1d4" text-anchor="middle">WATCHWIT</text>','</svg>'))
+        artwork=cairosvg.svg2png(bytestring=''.join(svg).encode(),output_width=480,output_height=480)
+        img=Image.open(io.BytesIO(artwork)).convert('RGB')
+        paths[theme]=save(img,f'bg/{theme}.png')
+        paths[f'aod_{theme}']=save(Image.new('RGBA',(K.W,K.W),(0,0,0,0)),f'aod/bg_{theme}.png')
     return paths
 
 
