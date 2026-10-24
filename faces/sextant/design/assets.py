@@ -245,9 +245,6 @@ def make_backgrounds():
                 '<rect x="48" y="172" width="384" height="141" rx="23" fill="url(#panel)" stroke="#267ea9" stroke-width="2"/>',
                 f'<rect x="43" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>',
                 f'<rect x="432" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>']
-        for yy in (210,223,236,249):
-            for xx in (60,398):
-                svg.append(f'<rect x="{xx}" y="{yy}" width="20" height="2.5" rx="1" fill="#22577d"/>')
         # Raised pod rims are composed after the central panel. This avoids
         # the panel clipping their curved outlines or gauge indicators.
         # The six raised pods. No flat rectangular complication cards.
