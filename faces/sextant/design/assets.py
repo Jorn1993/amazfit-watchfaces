@@ -282,8 +282,12 @@ def make_backgrounds():
 
 # ============================================================================= time digits
 def TF():
-    """The time-digit font: Roboto Condensed, the same as the text."""
-    return F.TEXT_FONT
+    """Extra-bold numeric instance for the six-gauge hero clock."""
+    path = F.BUILD / "RobotoCondensed-ReferenceBold.ttf"
+    if not path.exists():
+        variable = F.TTFont(K.FONT_DIR / "RobotoCondensed[wght].ttf")
+        F.instantiateVariableFont(variable, {"wght": 850}).save(path)
+    return path
 
 
 def solve_time_px():
