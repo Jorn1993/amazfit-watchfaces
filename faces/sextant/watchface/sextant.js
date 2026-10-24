@@ -37,8 +37,13 @@ export function sextantFace(L) {
     return { type, title_en: en, title_sc: sc, title_tc: tc, preview, data: { id } };
   }
   // type numbers follow the full metric list, so a metric keeps its type in every face
-  const SLOT_TYPES = METRIC_IDS.map((id) => editType(100001 + METRIC_TYPE[id],
-    [L.metrics[id].title, L.metrics[id].title_sc, L.metrics[id].title_tc], `edit/preview_${id}.png`, id))
+  const SLOT_TYPES = METRIC_IDS.map((id) => ({
+    ...editType(100001 + METRIC_TYPE[id],
+      [L.metrics[id].title, L.metrics[id].title_sc, L.metrics[id].title_tc], `edit/preview_${id}.png`, id),
+    // List-mode icon: point at the existing complication artwork; the
+    // full editor preview remains available for firmware versions that use it.
+    icon: `icons/color/${id}.png`,
+  }))
     .filter((t) => !L.edit_metrics || L.edit_metrics.indexOf(t.data.id) >= 0);
   const FIXED = L.fixed_slots || {};
   /** A tap on a complication opens its app only if it's this short and this still (ms, px). */
@@ -102,8 +107,7 @@ export function sextantFace(L) {
         resume_call: () => {
           this.screenActive = true;
           this.compassOn(true);
-          this.applyTheme(false);
-          this.update();
+          if (!this.applyTheme(false)) this.update();
         },
         pause_call: () => {
           this.screenActive = false;
@@ -152,8 +156,7 @@ export function sextantFace(L) {
 
     subscribe() {
       const onMinute = () => {
-        this.applyTheme(false);
-        this.update();
+        if (!this.applyTheme(false)) this.update();
       };
       // Most metrics don't need a full repaint every second. Throttle
       // background sensor events, but retain responsive compass updates.
@@ -244,12 +247,13 @@ export function sextantFace(L) {
 
     applyTheme(force) {
       const theme = this.wantedTheme();
-      if (!force && theme === this.theme) return;
+      if (!force && theme === this.theme) return false;
       this.theme = theme;
       this.widgets.forEach((w) => hmUI.deleteWidget(w));
       this.widgets = [];
       this.render(theme);
       this.update();
+      return true;
     },
 
     w(type, props) {
