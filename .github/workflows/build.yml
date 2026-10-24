@@ -58,10 +58,10 @@ jobs:
           with zipfile.ZipFile(p) as z:
               with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as device:
                   m=json.loads(device.read('app.json'))
-                  assert m['app']['appName']=='WatchWit v0.2.0'
+                  assert m['app']['appName']=='WatchWit v0.2.1'
                   assert m['app']['appId']==21319240
-                  assert m['app']['version']['name']=='0.2.0'
-                  assert m['app']['version']['code']==4
+                  assert m['app']['version']['name']=='0.2.1'
+                  assert m['app']['version']['code']==5
                   assert 11141376 in [x.get('deviceSource') for x in m['platforms']]
                   assets=device.namelist()
                   for theme in ['color','mono','mix','blue','green','purple','orange','pink','night']:
