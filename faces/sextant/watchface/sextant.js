@@ -377,7 +377,7 @@ export function sextantFace(L) {
         const bound = BOUND_METRICS[id];
         // Orbit card caption: aligned to its capsule, not the old perimeter.
         const caption = this.text({
-          x: box.cx - 53, y: (i === 0 || i === 1 || i === 5) ? 139 : 411,
+          x: box.cx - 53, y: (i === 0 || i === 1 || i === 5) ? 139 : 401,
           w: 106, h: 17, size: 15,
         }, { color: C.muted });
         const shortLabels = { heart: 'BPM', calories: 'CAL', battery: 'BATTERY', distance: 'KM' };
