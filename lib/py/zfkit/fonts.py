@@ -28,7 +28,7 @@ def build_fonts():
     BUILD.mkdir(parents=True, exist_ok=True)
     if not TEXT_FONT.exists():
         f = TTFont(FONT_DIR / "RobotoCondensed[wght].ttf")
-        instantiateVariableFont(f, {"wght": 400}).save(TEXT_FONT)
+        instantiateVariableFont(f, {"wght": 650}).save(TEXT_FONT)
 
 
 def write_watch_font(dest: Path):
