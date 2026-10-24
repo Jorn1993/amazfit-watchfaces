@@ -1,0 +1,131 @@
+name: Build Nautic Palette and installation QR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/**'
+      - '.github/workflows/build.yml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nautic-palette-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download pinned upstream Sextant source
+        run: |
+          mkdir upstream
+          git -C upstream init -q
+          git -C upstream remote add origin https://github.com/raetha/zepp-watch-faces.git
+          git -C upstream fetch --depth 1 origin b39c8a1ab51659a34f6317846b8bd649cd9fe7d8
+          git -C upstream checkout -q --detach FETCH_HEAD
+
+      - name: Install Zepp toolchain and image generator
+        run: |
+          python -m pip install -r upstream/tools/requirements.txt
+          npm install --prefix zeus-cli @zeppos/zeus-cli@1.9.3
+          ln -s @zeppos/zeus-cli/private-modules/zeppos-app-utils zeus-cli/node_modules/zeppos-app-utils
+          npm ci --prefix upstream
+
+      - name: Generate new themes and preview assets
+        run: |
+          python tools/build_patch.py upstream
+          python upstream/faces/sextant/design/generate.py
+          python upstream/faces/twisted-sextant/design/generate.py
+
+      - name: Check all watchface scenarios
+        run: npm test --prefix upstream
+
+      - name: Compile the 480×480 ZPK
+        run: |
+          (cd upstream/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
+          mkdir -p site/nautic-palette
+          python upstream/tools/extract_zpk.py upstream/faces/sextant/dist site/nautic-palette/nautic-palette.zpk
+          python - <<'PY'
+          import io,json,zipfile
+          from pathlib import Path
+          p=Path('site/nautic-palette/nautic-palette.zpk')
+          with zipfile.ZipFile(p) as z:
+              with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as device:
+                  m=json.loads(device.read('app.json'))
+                  assert m['app']['appName']=='Nautic Palette'
+                  assert m['app']['appId']==21319240
+                  assert m['app']['version']['name']=='0.1.0'
+                  assert 11141376 in [x.get('deviceSource') for x in m['platforms']]
+                  assets=device.namelist()
+                  for theme in ['color','mono','mix','blue','green','purple','orange','pink','night']:
+                      assert f'assets/time/{theme}/0.png' in assets,theme
+          print('Verified device package:',p,p.stat().st_size,'bytes')
+          PY
+
+      - name: Generate Zepp installation QR and install page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import qrcode
+          base='jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk'
+          payload='zpkd1://'+base
+          folder=Path('site/nautic-palette')
+          qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
+          qr.add_data(payload);qr.make(fit=True)
+          qr.make_image(fill_color='#111827',back_color='white').save(folder/'install-qr.png')
+          (Path('site')/'.nojekyll').write_text('')
+          Path('site/index.html').write_text("""<!doctype html>
+          <html lang="en"><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Nautic Palette — Zepp installation</title>
+          <style>body{font:16px system-ui,sans-serif;max-width:680px;margin:5rem auto;padding:1rem;color:#ecf2fa;background:#101724;line-height:1.6}
+          a{color:#8ab4ff}img{max-width:280px;border-radius:12px}code{overflow-wrap:anywhere}
+          </style><main><h1>Nautic Palette</h1><p>Custom Sextant-style watchface for 480×480 Zepp watches, featuring Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes.</p>
+          <h2>Install with Zepp</h2>
+          <p>In Zepp, enable Developer Mode (Profile → Settings → About → tap the Zepp logo 7 times), then open your device’s Developer Mode and choose Scan. Scan this QR code:</p>
+          <p><img src="nautic-palette/install-qr.png" alt="Zepp installation QR code"></p>
+          <p><a href="nautic-palette/nautic-palette.zpk">Download ZPK</a> • <a href="https://github.com/Jorn1993/amazfit-watchfaces">Source repository</a></p>
+          <p><small>Independent noncommercial derivative of <a href="https://github.com/raetha/zepp-watch-faces">raetha's Sextant</a> (CC BY-NC-SA 4.0). Not affiliated with Zepp or Amazfit. On-watch installation not yet verified.</small></p></main></html>""")
+          print(payload)
+          PY
+
+      - name: Upload installable files to the Actions run
+        uses: actions/upload-artifact@v4
+        with:
+          name: nautic-palette-release
+          path: site/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Prepare GitHub Pages site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy installer website to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
