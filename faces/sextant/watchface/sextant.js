@@ -375,6 +375,12 @@ export function sextantFace(L) {
         const box = L.slots[i];
         const slot = dyn.slots[i];
         const bound = BOUND_METRICS[id];
+        // Orbit card caption: aligned to its capsule, not the old perimeter.
+        const caption = this.text({
+          x: box.cx - 54, y: (i === 0 || i === 1 || i === 5) ? 132 : 404,
+          w: 108, h: 18, size: 15,
+        }, { color: C.muted });
+        caption.setProperty(hmUI.prop.TEXT, L.metrics[id].title.toUpperCase().slice(0, 14));
         // turned corners (Twisted Sextant): the firmware turns the icon and the glyph images
         const rot = box.rot;
         const turnIcon = rot && rot.icon && !(bound && bound.levelIcon);
