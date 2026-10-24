@@ -94,16 +94,21 @@ export function sextantFace(L) {
         });
       });
       this.settings = this.buildEditGroups();
+      this.screenActive = true;
       this.subscribe();
       this.applyTheme(true);
 
       hmUI.createWidget(hmUI.widget.WIDGET_DELEGATE, {
         resume_call: () => {
+          this.screenActive = true;
           this.compassOn(true);
           this.applyTheme(false);
           this.update();
         },
-        pause_call: () => this.compassOn(false),
+        pause_call: () => {
+          this.screenActive = false;
+          this.compassOn(false);
+        },
       });
       this.compassOn(true);
     },
@@ -150,14 +155,19 @@ export function sextantFace(L) {
         this.applyTheme(false);
         this.update();
       };
-      // at most one refresh a second (the compass and barometer report often)
-      let last = 0;
-      const onChange = () => {
-        // the always-on screen shows only the time, date and battery: the minute tick is enough
-        if (this.isAod()) return;
-        const t = Date.now();
-        if (t - last < 1000) return;
-        last = t;
+      // Most metrics don't need a full repaint every second. Throttle
+      // background sensor events, but retain responsive compass updates.
+      // The minute tick and resume callback always refresh everything.
+      const lastBySensor = {};
+      let lastFullUpdate = 0;
+      const onChangeFor = (name) => () => {
+        if (!this.screenActive || this.isAod()) return;
+        const now = Date.now();
+        const interval = name === 'COMPASS' ? 1000 : name === 'BATTERY' ? 10000 : 3000;
+        if (now - (lastBySensor[name] || 0) < interval) return;
+        if (now - lastFullUpdate < (name === 'COMPASS' ? 1000 : 2000)) return;
+        lastBySensor[name] = now;
+        lastFullUpdate = now;
         this.update();
       };
       const subs = [];
@@ -178,6 +188,7 @@ export function sextantFace(L) {
         // heart rate reports its last measurement; the others report changes
         const [on, off] = def && def.event === 'LAST' ? ['onLastChange', 'offLastChange'] : ['onChange', 'offChange'];
         if (typeof s[on] !== 'function') return;
+        const onChange = onChangeFor(name);
         s[on](onChange);
         subs.push(() => typeof s[off] === 'function' && s[off](onChange));
       });
@@ -199,6 +210,15 @@ export function sextantFace(L) {
           default_type: def.type,
           optional_types: types,
           count: types.length,
+          // Use Zepp's built-in full-screen list when a complication is tapped
+          // instead of making the user swipe through every available option.
+          ...(id >= 101 && id < 120 ? { select_list: {
+            title_font_size: 30,
+            title_align_h: hmUI.align.CENTER_H,
+            list_item_vspace: 8,
+            list_tips_text_font_size: 26,
+            list_tips_text_align_h: hmUI.align.LEFT,
+          } } : {}),
           tips_BG: 'edit/tip.png',
           tips_x: px_(box.w / 2 - 75),
           tips_y: px_(tipsBelow ? box.h + 6 : -46),
