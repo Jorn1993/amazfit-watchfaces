@@ -60,7 +60,8 @@ jobs:
                   m=json.loads(device.read('app.json'))
                   assert m['app']['appName']=='Nautic Palette'
                   assert m['app']['appId']==21319240
-                  assert m['app']['version']['name']=='0.1.0'
+                  assert m['app']['version']['name']=='0.1.1'
+                  assert m['app']['version']['code']==2
                   assert 11141376 in [x.get('deviceSource') for x in m['platforms']]
                   assets=device.namelist()
                   for theme in ['color','mono','mix','blue','green','purple','orange','pink','night']:
