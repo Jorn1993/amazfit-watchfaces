@@ -1,4 +1,5 @@
 name: Build WatchWit and installation QR
+# Preview source: visual-refinement-v0.3 (separate app ID and installer)
 
 on:
   push:
