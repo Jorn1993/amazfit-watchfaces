@@ -167,8 +167,16 @@ def make_markers():
             t = K.THEMES[theme]
             img, x0, y0 = marker_image(ang, t["accent"])
             save(img, f"marker/{theme}/m{k}_brass.png")
-            # only metrics with a goal fill their gauge past a marker
-            for metric in (m for m, v in K.METRICS.items() if v[2]):
+            # Color uses a different color for each lit metric. Mix reuses those
+            # exact same bitmaps. Mono/night need just one shared uniform lit
+            # bitmap, and single-hue themes reuse their brass marker.
+            if theme == "color":
+                metrics = (m for m, v in K.METRICS.items() if v[2])
+            elif theme in ("mono", "night"):
+                metrics = ("steps",)
+            else:
+                metrics = ()
+            for metric in metrics:
                 save(marker_image(ang, metric_rgb(theme, metric))[0], f"marker/{theme}/m{k}_lit_{metric}.png")
         out.append(dict(k=k, a=ang, x=x0, y=y0))
     return out
@@ -323,16 +331,25 @@ def metric_rgb(theme, metric):
 
 def make_icons():
     for theme in THEME_NAMES:
-        for metric in list(METRIC_SVG):
-            base = metric if metric in K.METRICS else metric.split("_")[0] if metric.split("_")[0] in K.METRICS else "sun"
-            rgb = metric_rgb(theme, base)
-            svg = METRIC_SVG[metric]("#%02x%02x%02x" % rgb)
-            save(centred(svg_to_image(svg, K.ICON_PX), K.ICON_PX), f"icons/{theme}/{metric}.png")
-        for i, (kind, _) in enumerate(K.WEATHER):
-            small = retint(svg_to_image(weather_svg(kind), K.ICON_PX), theme, K.THEMES[theme].get("metric"))
-            save(centred(small, K.ICON_PX), f"icons/{theme}/weather_{i}.png")
-            if i == 0:                                   # today's forecast starts on this icon
-                save(centred(small, K.ICON_PX), f"icons/{theme}/forecast.png")
+        # Mix's metric and weather icons are byte-identical to Color's icons.
+        # The renderer intentionally points Mix at icons/color instead.
+        if theme != "mix":
+            for metric in list(METRIC_SVG):
+                base = metric if metric in K.METRICS else metric.split("_")[0] if metric.split("_")[0] in K.METRICS else "sun"
+                rgb = metric_rgb(theme, base)
+                svg = METRIC_SVG[metric]("#%02x%02x%02x" % rgb)
+                save(centred(svg_to_image(svg, K.ICON_PX), K.ICON_PX), f"icons/{theme}/{metric}.png")
+            # Zepp's weather conditions have repeated icon types; their indexed
+            # level array can safely point more than one condition at one image.
+            seen_weather = set()
+            for i, (kind, _) in enumerate(K.WEATHER):
+                if kind in seen_weather:
+                    continue
+                seen_weather.add(kind)
+                small = retint(svg_to_image(weather_svg(kind), K.ICON_PX), theme, K.THEMES[theme].get("metric"))
+                save(centred(small, K.ICON_PX), f"icons/{theme}/weather_{i}.png")
+                if i == 0:
+                    save(centred(small, K.ICON_PX), f"icons/{theme}/forecast.png")
         for level, hx in K.BATTERY_COLORS.items():
             rgb = K.hexrgb(hx) if theme == "color" else K.THEMES[theme]["metric"]
             save(centred(svg_to_image(BATTERY_SVG("#%02x%02x%02x" % rgb), K.BATTERY_ICON_PX), K.BATTERY_ICON_PX), f"battery/{theme}/{level}.png")
@@ -366,7 +383,11 @@ def make_desc_images(box):
     f = F.pil_font(str(F.TEXT_FONT), px, S)
     for theme in THEME_NAMES:
         col = K.THEMES[theme]["desc"]
+        seen_desc = set()
         for i, (_, text) in enumerate(K.WEATHER):
+            if text in seen_desc or (not text and theme != "color"):
+                continue
+            seen_desc.add(text)
             img = Image.new("RGBA", (box["w"] * S, box["h"] * S), (0, 0, 0, 0))
             if text:
                 ImageDraw.Draw(img).text((img.width / 2, baseline * S), text, font=f, fill=col + (255,), anchor="ms")
@@ -703,6 +724,11 @@ def build_layout(tm, bg_paths):
         L["demo_values"] = K.DEMO_VALUES
     L["fixed_slots"] = {str(k): v for k, v in K.FIXED_SLOTS.items()}
     L["weather_desc"] = [d for _, d in K.WEATHER]
+    # IMG_LEVEL keeps 29 firmware indices; duplicate images share a source.
+    L["weather_icon_index"] = [next(j for j, (other, _) in enumerate(K.WEATHER) if other == kind)
+                               for kind, _ in K.WEATHER]
+    L["weather_text_index"] = [next(j for j, (_, other) in enumerate(K.WEATHER) if other == text)
+                               for _, text in K.WEATHER]
     L["font"] = "fonts/" + F.TEXT_FONT_SUBSET_NAME
     L["_notes"] = dict(side_value_x=side_x, width_99999=w99, gap_99999_to_divider=side_gap,
                        time_px=K.TIME_PX, time_gap_side=round(gh, 1), time_gap_vertical=round(gv, 1))
