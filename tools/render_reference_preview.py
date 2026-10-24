@@ -50,12 +50,14 @@ def make():
         img.alpha_composite(sprite, (round(loc["x"]), round(loc["y"])))
         valbox = slot["value"]
         draw_text(draw, value, valbox, "#f3f7fd")
-        cx = slot["cx"]
-        y = 139 if idx in (0,1,5) else 401
-        textfont = font(14 if idx == 3 else 15)
-        width = draw.textbbox((0,0), label, font=textfont)[2]
-        assert width < 106, label
-        draw.text((cx,y+8.5),label,font=textfont,fill="#a7b9ce",anchor="mm")
+        caption = slot["caption"]
+        textfont = font(caption["size"])
+        width = draw.textbbox((0, 0), label, font=textfont)[2]
+        if width > caption["w"]:
+            raise AssertionError("Caption too wide for its circle: " + label)
+        draw.text((caption["x"] + caption["w"]/2,
+                   caption["y"] + caption["h"]/2),
+                  label, font=textfont, fill="#a7b9ce", anchor="mm")
     for key,val,color in (("dow","MON","#36d7ff"),("month","APR","#f3f7fd"),("day","28","#f3f7fd")):
         draw_text(draw,val,DATA["date"][key],color)
     T = DATA["time"]
