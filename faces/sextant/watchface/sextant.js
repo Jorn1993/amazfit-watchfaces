@@ -377,25 +377,11 @@ export function sextantFace(L) {
         const bound = BOUND_METRICS[id];
         // Orbit card caption: aligned to its capsule, not the old perimeter.
         const captionY = (i === 0 || i === 1 || i === 5) ? 139 : 401;
-        if (id === 'weather') {
-          // Real condition description supplied by firmware (not a hardcoded
-          // WEATHER caption); the generator fits it to this circular module.
-          this.w(hmUI.widget.IMG_LEVEL, {
-            x: px_(box.cx - 53), y: px_(captionY),
-            image_array: L.weather_desc.map((label, k) => label
-              ? `pod_desc/${theme}/${L.weather_text_index[k]}.png`
-              : 'pod_desc/color/25.png'),
-            image_length: L.weather_desc.length,
-            type: hmUI.data_type.WEATHER_CURRENT, show_level: NORMAL,
-          });
-        } else {
-          const caption = this.text({
-            x: box.cx - 53, y: captionY, w: 106, h: 17, size: 15,
-          }, { color: C.muted });
-          const shortLabels = { heart: 'BPM', calories: 'CAL', battery: 'BATTERY', distance: 'KM' };
-          caption.setProperty(hmUI.prop.TEXT,
-            shortLabels[id] || L.metrics[id].title.toUpperCase().slice(0, 11));
-        }
+        const caption = this.text({
+          x: box.cx - 53, y: captionY, w: 106, h: 17, size: 15,
+        }, { color: C.muted });
+        const shortLabels = { heart: 'BPM', calories: 'CAL', battery: 'BATTERY', distance: 'KM', weather: 'WEATHER' };
+        caption.setProperty(hmUI.prop.TEXT, shortLabels[id] || L.metrics[id].title.toUpperCase().slice(0, 11));
         // turned corners (Twisted Sextant): the firmware turns the icon and the glyph images
         const rot = box.rot;
         const turnIcon = rot && rot.icon && !(bound && bound.levelIcon);
