@@ -484,6 +484,28 @@ def make_desc_images(box):
     return dict(x=int(round(box["x"])), y=box["y"], w=box["w"], h=box["h"])
 
 
+def make_pod_weather_descriptions():
+    """Small current-condition labels inside the bottom weather gauge."""
+    px, width, height = 14, 106, 17
+    for theme in THEME_NAMES:
+        seen = set()
+        for index, (_, label) in enumerate(K.WEATHER):
+            if label in seen or (not label and theme != "color"):
+                continue
+            seen.add(label)
+            image = Image.new("RGBA", (width * S, height * S), (0, 0, 0, 0))
+            if label:
+                size = px
+                font = F.pil_font(str(F.TEXT_FONT), size, S)
+                while size > 10 and ImageDraw.Draw(image).textbbox((0, 0), label, font=font)[2] > (width-4)*S:
+                    size -= 1
+                    font = F.pil_font(str(F.TEXT_FONT), size, S)
+                d = ImageDraw.Draw(image)
+                d.text((width*S/2, height*S/2), label, font=font,
+                       fill=K.THEMES[theme]["muted"]+(255,), anchor="mm")
+            save(down(image), f"pod_desc/{theme}/{index}.png")
+
+
 # ============================================================================= layout maths
 def text_box(px, cx, ink_cy, w, sample="0123456789"):
     y, h = F.text_box_for_ink_centre(F.TEXT_FONT, px, ink_cy, sample)
@@ -862,6 +884,7 @@ def generate():
     bg = make_backgrounds()
     tm = make_time_digits()
     make_icons()
+    make_pod_weather_descriptions()
     make_rot_assets()
     L = build_layout(tm, bg)
     make_edit_assets(L)
