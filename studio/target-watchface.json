@@ -5,7 +5,7 @@
     "width": 480,
     "height": 480,
     "round": true,
-    "safeInset": 14
+    "safeInset": 4
   },
   "design": "WatchWit Reference",
   "elements": [
@@ -78,7 +78,7 @@
       "id": "battery",
       "type": "card",
       "x": 63,
-      "y": 331,
+      "y": 319,
       "w": 110,
       "h": 100,
       "value": "85%",
@@ -91,7 +91,7 @@
       "id": "weather",
       "type": "card",
       "x": 185,
-      "y": 331,
+      "y": 319,
       "w": 110,
       "h": 100,
       "value": "24°",
@@ -104,7 +104,7 @@
       "id": "distance",
       "type": "card",
       "x": 307,
-      "y": 331,
+      "y": 319,
       "w": 110,
       "h": 100,
       "value": "6.2",
