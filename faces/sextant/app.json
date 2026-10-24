@@ -2,18 +2,18 @@
   "configVersion": "v3",
   "app": {
     "appId": 21319242,
-    "appName": "WatchWit Orbit v0.1.1",
+    "appName": "WatchWit Reference v0.2.0",
     "appType": "watchface",
     "version": {
-      "code": 2,
-      "name": "0.1.1"
+      "code": 3,
+      "name": "0.2.0"
     },
     "icon": "icon.png",
     "vender": "WatchWit",
     "cover": [
       "cover.png"
     ],
-    "description": "WatchWit Orbit: independent minimalist celestial data watchface, not a Dashboard variant."
+    "description": "WatchWit Reference: detailed six-gauge circular layout with live editable complications and two-tone clock."
   },
   "runtime": {
     "apiVersion": {
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "WatchWit Orbit v0.1.1"
+      "appName": "WatchWit Reference v0.2.0"
     },
     "zh-CN": {
-      "appName": "WatchWit Orbit v0.1.1"
+      "appName": "WatchWit Reference v0.2.0"
     },
     "zh-TW": {
-      "appName": "WatchWit Orbit v0.1.1"
+      "appName": "WatchWit Reference v0.2.0"
     }
   },
   "defaultLanguage": "en-US",
