@@ -429,15 +429,7 @@ export function sextantFace(L) {
         alarm: hmUI.system_status.CLOCK,
         lock: hmUI.system_status.LOCK,
       };
-      L.glances.forEach((gl) => {
-        if (statusType[gl.name] === undefined) return;
-        this.w(hmUI.widget.IMG, {
-          x: px_(gl.x), y: px_(gl.y), src: `status/${theme}/${gl.name}_off.png`, show_level: NORMAL,
-        });
-        this.w(hmUI.widget.IMG_STATUS, {
-          x: px_(gl.x), y: px_(gl.y), type: statusType[gl.name], src: `status/${theme}/${gl.name}.png`, show_level: NORMAL,
-        });
-      });
+      // Orbit omits Classic's floating status badges in favor of uncluttered cards.
 
       // date (left of the time), battery (right)
       dyn.dow = this.text(L.date.dow, { color: C.accent });
@@ -453,7 +445,7 @@ export function sextantFace(L) {
       this.timeWidgets(`time/${theme}`, L.time, NORMAL);
       // condition text: pre-rendered names picked by the firmware (current conditions).
       // Only shown when a slot shows weather: without the temperature it's out of context.
-      if (hasDesc) this.w(hmUI.widget.IMG_LEVEL, {
+      if (false && hasDesc) this.w(hmUI.widget.IMG_LEVEL, {
         x: px_(L.desc_img.x), y: px_(L.desc_img.y),
         image_array: L.weather_desc.map((text, i) => text
           ? `desc/${theme}/${L.weather_text_index[i]}.png`
