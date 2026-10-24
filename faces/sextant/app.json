@@ -2,11 +2,11 @@
   "configVersion": "v3",
   "app": {
     "appId": 21319243,
-    "appName": "WatchWit Reference v0.2.1",
+    "appName": "WatchWit Reference v0.2.2",
     "appType": "watchface",
     "version": {
-      "code": 1,
-      "name": "0.2.1"
+      "code": 2,
+      "name": "0.2.2"
     },
     "icon": "icon.png",
     "vender": "WatchWit",
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "WatchWit Reference v0.2.1"
+      "appName": "WatchWit Reference v0.2.2"
     },
     "zh-CN": {
-      "appName": "WatchWit Reference v0.2.1"
+      "appName": "WatchWit Reference v0.2.2"
     },
     "zh-TW": {
-      "appName": "WatchWit Reference v0.2.1"
+      "appName": "WatchWit Reference v0.2.2"
     }
   },
   "defaultLanguage": "en-US",
