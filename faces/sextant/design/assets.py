@@ -230,14 +230,9 @@ def make_backgrounds():
             x2=cx+r*math.cos(math.radians(bb)); y2=cy+r*math.sin(math.radians(bb))
             svg.append(f'<path d="M{x1:.2f},{y1:.2f} A{r},{r} 0 0 1 {x2:.2f},{y2:.2f}" '
                        f'fill="none" stroke="{colour}" stroke-width="{width}" opacity="{op}"/>')
-        # Complete segmented ring with four intentional coloured sectors.
-        sectors=((192,268,aqua),(280,353,warm),(12,80,aqua),(100,166,green))
-        for angle in range(0,360,7):
-            colour='#39495e'
-            for low,hi,c in sectors:
-                if low <= angle < hi:
-                    colour=c if angle < low+(hi-low)*.76 else '#35485e'
-            seg(240,240,225,angle,angle+5.25,10.3,colour)
+        # No peripheral blocks: they competed with the six complication gauges,
+        # were disconnected from live metrics and reduced usable screen space.
+        svg.append('<circle cx="240" cy="240" r="226" fill="none" stroke="#1c344b" stroke-width="1.4"/>')
         # Central body with shaped shoulder silhouette and cyan inset rails.
         shoulder=('M 48 171 Q 58 163 81 162 L 139 162 Q 154 161 164 158 '
                   'Q 172 155 190 155 L 291 155 Q 310 155 317 156 '
@@ -256,17 +251,17 @@ def make_backgrounds():
         # Raised pod rims are composed after the central panel. This avoids
         # the panel clipping their curved outlines or gauge indicators.
         # The six raised pods. No flat rectangular complication cards.
-        for cx,cy,colour in ((119,108,aqua),(240,108,red),(361,108,warm),
-                             (119,369,green),(240,369,aqua),(361,369,aqua)):
+        for cx,cy,colour in ((119,100,aqua),(240,100,red),(361,100,warm),
+                             (119,380,green),(240,380,aqua),(361,380,aqua)):
             svg.extend((
-                f'<circle cx="{cx}" cy="{cy+2}" r="57" fill="#02070d" opacity=".8"/>',
-                f'<circle cx="{cx}" cy="{cy}" r="55" fill="url(#pod)" stroke="#375874" stroke-width="2.6"/>',
-                f'<circle cx="{cx}" cy="{cy}" r="50" fill="#020b16" stroke="#10263b" stroke-width="1.4"/>'))
+                f'<circle cx="{cx}" cy="{cy+2}" r="49" fill="#02070d" opacity=".8"/>',
+                f'<circle cx="{cx}" cy="{cy}" r="47" fill="url(#pod)" stroke="#375874" stroke-width="2.6"/>',
+                f'<circle cx="{cx}" cy="{cy}" r="43" fill="#020b16" stroke="#10263b" stroke-width="1.4"/>'))
             # Decorated upper semicircular gauge with thicker discrete tiles.
             for j in range(14):
                 angle=197+j*10
-                seg(cx,cy,52,angle,angle+7.2,6.3,colour if j<9 else '#34455c')
-            seg(cx,cy,56,8,161,1.1,'#2e668d',.70)
+                seg(cx,cy,45,angle,angle+7.2,5.8,colour if j<9 else '#34455c')
+            seg(cx,cy,49,8,161,1.1,'#2e668d',.70)
         svg.append('<path d="M239 176v19" stroke="#7197b3" opacity=".8" stroke-width="1"/>')
         # Accent underlines between pods, avoiding dynamic text.
         for xx in (180,300):
@@ -657,8 +652,8 @@ def build_layout(tm, bg_paths):
     for name in slot_names:
         part = elements[name]
         cx = part["x"] + part["w"] / 2
-        icon_cy = part["y"] + 20
-        value_cy = part["y"] + 61
+        icon_cy = part["y"] + (18 if name in ("battery", "weather", "distance") else 20)
+        value_cy = part["y"] + (48 if name in ("battery", "weather", "distance") else 56)
         centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
