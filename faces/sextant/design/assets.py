@@ -668,7 +668,7 @@ def build_layout(tm, bg_paths):
     L["rules"] = []
     L["_notes_rim_gap"] = 16
     asc, desc = F.vmetrics(str(F.TEXT_FONT))
-    for cx, icy, vcy in centres:
+    for slot_name, (cx, icy, vcy) in zip(slot_names, centres):
         vbox = text_box(K.VALUE_PX, cx, vcy, 68)
         # unit box: shares the value's baseline
         v_line_h = (asc + desc) * K.VALUE_PX
@@ -682,6 +682,7 @@ def build_layout(tm, bg_paths):
             cx=round(cx, 1),
             icon=dict(x=round(cx - K.ICON_PX / 2), y=round(icy - K.ICON_PX / 2), size=K.ICON_PX),
             value=vbox,
+            caption=dict(x=round(cx - 26), y=round(elements[slot_name]["y"] + 66), w=52, h=13, size=10),
             unit=dict(y=round(u_y, 1), h=u_h, size=K.UNIT_PX),
             edit=dict(x=round(cx - 58), y=round(top_y), w=116, h=round(bot_y - top_y)),
         ))
