@@ -150,6 +150,8 @@ jobs:
           p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
+          python preview-source/tools/check_orbit_geometry.py
+          python preview-source/tools/check_orbit_runtime_layout.py
           npm test --prefix preview-source
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
           mkdir -p site/preview
