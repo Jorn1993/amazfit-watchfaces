@@ -230,7 +230,7 @@ def make_backgrounds():
         # Hero time panel is mostly open space to maximize legibility.
         d.rounded_rectangle([P(49),P(171),P(431),P(313)],radius=P(26),
                             fill=(4,13,26),outline=(40,82,108),width=P(2))
-        d.line([P(92),P(186),P(388),P(186)],fill=(28,62,84),width=P(1))
+        # The date/battery header occupies this strip: no line through text.
         # Small brand marker positioned below the lower modules.
         Fp=F.pil_font(str(F.TEXT_FONT),12,S)
         d.text((P(240),P(452)),"WATCHWIT  /  ORBIT",font=Fp,
@@ -617,8 +617,13 @@ def build_layout(tm, bg_paths):
     side_l = K.SEP_X[0] / 2
     side_r = 389
     top = K.MID - stack_h / 2
-    L["date"] = date_lines(91, K.MID - stack_h / 2)
-    L["theme_edit"] = dict(x=round(side_l - 44), y=round(top - 10), w=88, h=round(stack_h + 20))
+    # Compact horizontal header above hero clock, not Classic side stacks.
+    L["date"] = dict(
+        dow=text_box(17, 130, 188, 62, "HEOTX"),
+        month=text_box(17, 245, 188, 64, "HEOTX"),
+        day=text_box(17, 304, 188, 40),
+    )
+    L["theme_edit"] = dict(x=95, y=172, w=225, h=31)
 
     bh = digit_h(K.BATTERY_VALUE_PX)
     # battery: the drawing is centred in its box and much shorter than it is wide, so
@@ -627,8 +632,8 @@ def build_layout(tm, bg_paths):
     blk = bat_ink + K.VISIBLE_ICON_GAP + bh
     btop = K.MID - blk / 2
     L["battery"] = dict(
-        icon=dict(x=round(side_r - K.BATTERY_ICON_PX / 2), y=round(btop + bat_ink / 2 - K.BATTERY_ICON_PX / 2), size=K.BATTERY_ICON_PX),
-        text=text_box(K.BATTERY_VALUE_PX, side_r, btop + bat_ink + K.VISIBLE_ICON_GAP + bh / 2, 100),
+        icon=dict(x=341, y=177, size=K.BATTERY_ICON_PX),
+        text=text_box(17, 396, 188, 55),
     )
 
     # ---------------------------------------------------------------- time + description
