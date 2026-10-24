@@ -27,21 +27,22 @@ The package reuses byte-for-byte identical generated bitmaps without altering th
 
 ## Install through Zepp
 
-Open the dedicated installation page:
+**[Open the Nautic Palette installation page](https://jorn1993.github.io/amazfit-watchfaces/)**
 
-**https://jorn1993.github.io/amazfit-watchfaces/**
+- **[Save QR image for Nautic Palette v0.1.1](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/Nautic-Palette-v0.1.1-QR.png)** — includes the watchface name and version number, and can be saved to your phone's gallery.
+- [Download the current ZPK](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk)
 
-Scan the QR code with **Zepp → Profile → your watch → Developer Mode → Scan**.
+In the Zepp app, select **Profile → your watch → Developer Mode → Scan** and scan the QR code displayed on another screen.
 
-If Developer Mode isn't visible, open **Zepp → Profile → Settings → About** and tap the Zepp logo seven times.
+If Developer Mode is not visible, open **Zepp → Profile → Settings → About** and tap the Zepp logo seven times. The QR contains `zpkd1://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk`; Zepp downloads the package from that public HTTPS address.
 
-The QR code contains the Zepp installation URI:
+Once installed, long-press the face, choose **Edit**, and select the theme in the watchface's editor.
 
-`zpkd1://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk`
+## Battery and refresh behavior
 
-This URL needs public HTTPS access so Zepp can retrieve the compiled package. The face has a separate app ID (`21319240`) and can be installed alongside existing watchfaces.
+Nautic Palette is an event-driven digital watchface. The time refreshes once per minute; sensor changes can trigger additional complication updates, throttled to at most once per second. Always-On Display draws a simplified face and does not redraw live complications. The compass sensor is started only when a compass complication is selected and the watchface is active.
 
-Once installed, long-press the face, choose **Edit**, and select the desired theme in the existing theme picker.
+Starting in v0.1.1, repeated date and battery values do not trigger redundant UI property updates. This reduces unnecessary rendering work but **does not establish a measured battery-life improvement**. Real consumption depends on your selected complications, always-on display, raise-to-wake usage, sensors, screen brightness and activity tracking.
 
 ## Build and deployment
 
