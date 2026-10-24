@@ -142,11 +142,11 @@ jobs:
           p=Path('preview-source/faces/sextant/app.json')
           data=json.loads(p.read_text())
           data['app']['appId']=21319242
-          data['app']['appName']='WatchWit Orbit v0.1.0'
-          data['app']['version']={'code':1,'name':'0.1.0'}
+          data['app']['appName']='WatchWit Orbit v0.1.1'
+          data['app']['version']={'code':2,'name':'0.1.1'}
           data['app']['description']='WatchWit Orbit — independent watchface, currently an early design build.'
           for lang in data['i18n'].values():
-              lang['appName']='WatchWit Orbit v0.1.0'
+              lang['appName']='WatchWit Orbit v0.1.1'
           p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
@@ -156,7 +156,7 @@ jobs:
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
           mkdir -p site/preview
           python tools/extract_zpk.py preview-source/faces/sextant/dist site/preview/watchwit-preview.zpk
-          cp site/preview/watchwit-preview.zpk site/preview/watchwit-orbit-v0.1.0.zpk
+          cp site/preview/watchwit-preview.zpk site/preview/watchwit-orbit-v0.1.1.zpk
           python - <<'PY'
           import io,json,zipfile
           from pathlib import Path
@@ -164,8 +164,8 @@ jobs:
           with zipfile.ZipFile(p) as z, zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
               m=json.loads(d.read('app.json'))['app']
               assert m['appId']==21319242,m
-              assert m['appName']=='WatchWit Orbit v0.1.0',m
-              assert m['version']['name']=='0.1.0',m
+              assert m['appName']=='WatchWit Orbit v0.1.1',m
+              assert m['version']['name']=='0.1.1',m
           print('Validated separate WatchWit preview package:',p.stat().st_size,'bytes')
           PY
 
@@ -176,7 +176,7 @@ jobs:
           from pathlib import Path
           from PIL import Image,ImageDraw,ImageFont
           folder=Path('site/preview')
-          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-orbit-v0.1.0.zpk'
+          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-orbit-v0.1.1.zpk'
           qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
           qr.add_data(payload);qr.make(fit=True)
           src=qr.make_image(fill_color='#111827',back_color='white').convert('RGB')
@@ -187,16 +187,16 @@ jobs:
           fonts=Path('/usr/share/fonts/truetype/dejavu')
           dr.text((w//2,35),'WatchWit Orbit',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
           dr.text((w//2,95),'Version 0.1.0',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
-          card.save(folder/'WatchWit-Orbit-v0.6.0-QR.png')
+          card.save(folder/'WatchWit-Orbit-v0.1.1-QR.png')
           (folder/'index.html').write_text("""<!doctype html><html lang="en"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Orbit v0.1.0</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Orbit v0.1.1</title>
           <style>body{font:16px system-ui;background:#101724;color:#ecf2fa;line-height:1.6;max-width:620px;padding:24px;margin:35px auto}
           img{width:min(100%,350px);border-radius:12px}a{color:#99c5ff}
           .button{display:inline-block;padding:12px 18px;margin:8px 8px 8px 0;border-radius:12px;background:#3076dd;color:white;text-decoration:none}</style></head>
-          <body><h1>WatchWit Orbit v0.1.0</h1><p>Early Orbit development build. Different watchface and app ID from stable WatchWit; concept layout still in progress.</p>
-          <p><img src="WatchWit-Orbit-v0.6.0-QR.png" alt="WatchWit Orbit installation QR"></p>
-          <p><a class="button" href="WatchWit-Orbit-v0.6.0-QR.png" download="WatchWit-Orbit-v0.6.0-QR.png">Save QR</a>
-          <a class="button" href="watchwit-orbit-v0.1.0.zpk">Download preview ZPK</a></p>
+          <body><h1>WatchWit Orbit v0.1.1</h1><p>Early Orbit development build. Different watchface and app ID from stable WatchWit; concept layout still in progress.</p>
+          <p><img src="WatchWit-Orbit-v0.1.1-QR.png" alt="WatchWit Orbit installation QR"></p>
+          <p><a class="button" href="WatchWit-Orbit-v0.1.1-QR.png" download="WatchWit-Orbit-v0.1.1-QR.png">Save QR</a>
+          <a class="button" href="watchwit-orbit-v0.1.1.zpk">Download preview ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
           <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
