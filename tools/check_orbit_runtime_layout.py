@@ -21,11 +21,13 @@ for idx,name in enumerate(order):
  boxes={
   'icon':(icon['x'],icon['y'],icon['size'],icon['size']),
   'value':(val['x'],val['y'],val['w'],val['h']),
-  'caption':(cx-26,p['y']+66,52,13)
+  'caption':(slot['caption']['x'],slot['caption']['y'],slot['caption']['w'],slot['caption']['h'])
  }
  for kind,rect in boxes.items():
   if not inside(rect,cx,cy,radius):
    errors.append(name+': '+kind+' escapes circular safe interior: '+str(rect))
+ if abs(slot['caption']['x']+slot['caption']['w']/2-cx)>1 or abs(slot['caption']['y']-(p['y']+66))>1:
+  errors.append(name+': caption no longer agrees with Studio geometry')
  if boxes['icon'][1]+boxes['icon'][3]>boxes['value'][1]+2:
   errors.append(name+': icon collides with value')
  if boxes['value'][1]+boxes['value'][3]>boxes['caption'][1]+2:
