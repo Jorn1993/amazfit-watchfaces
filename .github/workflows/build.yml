@@ -1,5 +1,5 @@
 name: Build WatchWit and installation QR
-# Preview source: watchwit-orbit (six-pod Orbit with battery picker previews)
+# Preview source: watchwit-orbit (six-pod Reference with battery picker previews)
 
 on:
   push:
@@ -123,20 +123,20 @@ jobs:
           <p><a class="button" href="nautic-palette/{filename}" download="{filename}">Save QR to gallery</a>
           <a class="button secondary" href="nautic-palette/nautic-palette.zpk">Download ZPK</a></p>
           <p><small>On some phones the image opens instead of saving. Long-press it and select Save image or Download image.</small></p>
-          <p><a class="button secondary" href="preview/">Explore WatchWit Orbit — separate watchface</a></p>
+          <p><a class="button secondary" href="preview/">Explore WatchWit Reference — separate watchface</a></p>
           </main></body></html>"""
           Path('site/index.html').write_text(page)
           print('QR download:',filename,'install URI:',payload)
           PY
 
-      - name: Checkout Orbit branch separately
+      - name: Checkout Reference branch separately
         uses: actions/checkout@v4
         with:
           ref: watchwit-orbit
           path: preview-source
           persist-credentials: false
 
-      - name: Build installable WatchWit Orbit
+      - name: Build installable WatchWit Reference
         run: |
           python - <<'PY'
           import json
@@ -144,21 +144,23 @@ jobs:
           p=Path('preview-source/faces/sextant/app.json')
           data=json.loads(p.read_text())
           data['app']['appId']=21319242
-          data['app']['appName']='WatchWit Orbit v0.1.1'
-          data['app']['version']={'code':2,'name':'0.1.1'}
-          data['app']['description']='WatchWit Orbit — independently installable minimalist orbital watchface.'
+          data['app']['appName']='WatchWit Reference v0.2.0'
+          data['app']['version']={'code':3,'name':'0.2.0'}
+          data['app']['description']='WatchWit Reference — independently installable six-gauge watchface.'
           for lang in data['i18n'].values():
-              lang['appName']='WatchWit Orbit v0.1.1'
+              lang['appName']='WatchWit Reference v0.2.0'
           p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
           python preview-source/tools/check_orbit_geometry.py
           python preview-source/tools/check_orbit_runtime_layout.py
           npm test --prefix preview-source
+          python preview-source/tools/render_reference_preview.py
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
           mkdir -p site/preview
+          cp preview-source/site/preview/watchwit-reference-preview.png site/preview/watchwit-reference-preview.png
           python tools/extract_zpk.py preview-source/faces/sextant/dist site/preview/watchwit-preview.zpk
-          cp site/preview/watchwit-preview.zpk site/preview/watchwit-orbit-v0.1.1.zpk
+          cp site/preview/watchwit-preview.zpk site/preview/watchwit-reference-v0.2.0.zpk
           python - <<'PY'
           import io,json,zipfile
           from pathlib import Path
@@ -166,8 +168,8 @@ jobs:
           with zipfile.ZipFile(p) as z, zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
               m=json.loads(d.read('app.json'))['app']
               assert m['appId']==21319242,m
-              assert m['appName']=='WatchWit Orbit v0.1.1',m
-              assert m['version']['name']=='0.1.1',m
+              assert m['appName']=='WatchWit Reference v0.2.0',m
+              assert m['version']['name']=='0.2.0',m
           print('Validated separate WatchWit preview package:',p.stat().st_size,'bytes')
           PY
 
@@ -178,7 +180,7 @@ jobs:
           from pathlib import Path
           from PIL import Image,ImageDraw,ImageFont
           folder=Path('site/preview')
-          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-orbit-v0.1.1.zpk'
+          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-reference-v0.2.0.zpk'
           qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
           qr.add_data(payload);qr.make(fit=True)
           src=qr.make_image(fill_color='#111827',back_color='white').convert('RGB')
@@ -187,18 +189,18 @@ jobs:
           card.paste(src,((w-src.width)//2,150))
           dr=ImageDraw.Draw(card)
           fonts=Path('/usr/share/fonts/truetype/dejavu')
-          dr.text((w//2,35),'WatchWit Orbit',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
-          dr.text((w//2,95),'Version 0.1.0',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
-          card.save(folder/'WatchWit-Orbit-v0.1.1-QR.png')
+          dr.text((w//2,35),'WatchWit Reference',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
+          dr.text((w//2,95),'Version 0.2.0',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
+          card.save(folder/'WatchWit-Reference-v0.2.0-QR.png')
           (folder/'index.html').write_text("""<!doctype html><html lang="en"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Orbit v0.1.1</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Reference v0.2.0</title>
           <style>body{font:16px system-ui;background:#101724;color:#ecf2fa;line-height:1.6;max-width:620px;padding:24px;margin:35px auto}
           img{width:min(100%,350px);border-radius:12px}a{color:#99c5ff}
           .button{display:inline-block;padding:12px 18px;margin:8px 8px 8px 0;border-radius:12px;background:#3076dd;color:white;text-decoration:none}</style></head>
-          <body><h1>WatchWit Orbit v0.1.1</h1><p>An independent, minimal orbital watchface designed for Amazfit Balance 2. Installs alongside Classic without replacing it.</p>
-          <p><img src="WatchWit-Orbit-v0.1.1-QR.png" alt="WatchWit Orbit installation QR"></p>
-          <p><a class="button" href="WatchWit-Orbit-v0.1.1-QR.png" download="WatchWit-Orbit-v0.1.1-QR.png">Save QR</a>
-          <a class="button" href="watchwit-orbit-v0.1.1.zpk">Download Orbit ZPK</a></p>
+          <body><h1>WatchWit Reference v0.2.0</h1><p><img src="watchwit-reference-preview.png" alt="Preview composed from generated watchface assets"></p><p>An independent, six-gauge reference-inspired watchface designed for Amazfit Balance 2. Installs alongside Classic without replacing it.</p>
+          <p><img src="WatchWit-Reference-v0.2.0-QR.png" alt="WatchWit Reference installation QR"></p>
+          <p><a class="button" href="WatchWit-Reference-v0.2.0-QR.png" download="WatchWit-Reference-v0.2.0-QR.png">Save QR</a>
+          <a class="button" href="watchwit-reference-v0.2.0.zpk">Download Reference ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
           <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
@@ -216,6 +218,7 @@ jobs:
           Path('/tmp/watchwit-studio-check.js').write_text(scripts[0])
           Path('site/studio').mkdir(parents=True,exist_ok=True)
           Path('site/studio/index.html').write_text(page)
+          Path('site/studio/reference.json').write_text(Path('preview-source/studio/target-watchface.json').read_text())
           PY
           node --check /tmp/watchwit-studio-check.js
 
