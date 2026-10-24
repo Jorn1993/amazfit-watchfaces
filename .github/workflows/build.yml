@@ -73,27 +73,57 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import qrcode
-          base='jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk'
-          payload='zpkd1://'+base
+          import json, qrcode, re, html
+          from PIL import Image, ImageDraw, ImageFont
+
+          manifest=json.loads(Path('faces/sextant/app.json').read_text())
+          name=manifest['app']['appName']
+          version=manifest['app']['version']['name']
+          slug=re.sub(r'[^A-Za-z0-9]+','-',name).strip('-')
+          filename=f'{slug}-v{version}-QR.png'
           folder=Path('site/nautic-palette')
+          folder.mkdir(parents=True, exist_ok=True)
+          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk'
+
           qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
-          qr.add_data(payload);qr.make(fit=True)
-          qr.make_image(fill_color='#111827',back_color='white').save(folder/'install-qr.png')
+          qr.add_data(payload)
+          qr.make(fit=True)
+          qr_img=qr.make_image(fill_color='#111827',back_color='white').convert('RGB')
+          qr_img.save(folder/'install-qr.png')
+          # Gallery-ready QR image: name and version are visible inside the PNG.
+          w=max(qr_img.width,720)
+          canvas=Image.new('RGB',(w,qr_img.height+180),'white')
+          canvas.paste(qr_img,((w-qr_img.width)//2,150))
+          d=ImageDraw.Draw(canvas)
+          font_dir=Path('/usr/share/fonts/truetype/dejavu')
+          large=ImageFont.truetype(str(font_dir/'DejaVuSans-Bold.ttf'),40)
+          small=ImageFont.truetype(str(font_dir/'DejaVuSans.ttf'),26)
+          d.text((w//2,35),name,font=large,anchor='mt',fill='#111827')
+          d.text((w//2,95),f'Version {version}',font=small,anchor='mt',fill='#475569')
+          canvas.save(folder/filename,optimize=True)
+          assert (folder/filename).exists()
           (Path('site')/'.nojekyll').write_text('')
-          Path('site/index.html').write_text("""<!doctype html>
-          <html lang="en"><meta charset="utf-8">
+          page=f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Nautic Palette — Zepp installation</title>
-          <style>body{font:16px system-ui,sans-serif;max-width:680px;margin:5rem auto;padding:1rem;color:#ecf2fa;background:#101724;line-height:1.6}
-          a{color:#8ab4ff}img{max-width:280px;border-radius:12px}code{overflow-wrap:anywhere}
-          </style><main><h1>Nautic Palette</h1><p>Custom watchface for 480×480 Zepp watches, featuring Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes.</p>
+          <title>{html.escape(name)} v{html.escape(version)} — Install</title>
+          <style>
+          body{{font:16px system-ui,sans-serif;max-width:650px;margin:4rem auto;padding:1.2rem;color:#ecf2fa;background:#101724;line-height:1.6}}
+          h1{{margin-bottom:.1rem}}.version{{margin-top:0;color:#aebfd6}}
+          a{{color:#8ab4ff}}img{{max-width:min(100%,360px);border-radius:12px}}
+          .button{{display:inline-block;text-decoration:none;background:#3b82f6;color:white;padding:.85rem 1rem;border-radius:12px;margin:.2rem .4rem .2rem 0;font-weight:650}}
+          .secondary{{background:#263246}}small{{color:#aebfd6}}
+          </style></head><body><main>
+          <h1>{html.escape(name)}</h1><p class="version">Version {html.escape(version)}</p>
+          <p>Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes.</p>
           <h2>Install with Zepp</h2>
-          <p>In Zepp, enable Developer Mode (Profile → Settings → About → tap the Zepp logo 7 times), then open your device’s Developer Mode and choose Scan. Scan this QR code:</p>
-          <p><img src="nautic-palette/install-qr.png" alt="Zepp installation QR code"></p>
-          <p><a href="nautic-palette/nautic-palette.zpk">Download ZPK</a></p>
-          <p><small>Nautic Palette for Zepp OS. On-watch installation not yet verified.</small></p></main></html>""")
-          print(payload)
+          <p>Enable Developer Mode in Zepp, then open your watch's Developer Mode and choose Scan.</p>
+          <p><img src="nautic-palette/{filename}" alt="{html.escape(name)} version {html.escape(version)} installation QR code"></p>
+          <p><a class="button" href="nautic-palette/{filename}" download="{filename}">Save QR to gallery</a>
+          <a class="button secondary" href="nautic-palette/nautic-palette.zpk">Download ZPK</a></p>
+          <p><small>On some phones the image opens instead of saving. Long-press it and select Save image or Download image.</small></p>
+          </main></body></html>"""
+          Path('site/index.html').write_text(page)
+          print('QR download:',filename,'install URI:',payload)
           PY
 
       - name: Upload installable files to the Actions run
