@@ -1,0 +1,72 @@
+{
+ "name": "fit",
+ "edit": [
+  "steps",
+  "steps",
+  "steps",
+  "steps",
+  "steps",
+  "steps",
+  "color",
+  "off"
+ ],
+ "sensors": {
+  "TIME": {
+   "hour": 23,
+   "minute": 58,
+   "week": 4,
+   "day": 15,
+   "month": 10
+  },
+  "BATTERY": {
+   "current": 82
+  },
+  "STEP": {
+   "current": 99999,
+   "target": 10000
+  },
+  "CALORIE": {
+   "current": 486,
+   "target": 800
+  },
+  "HEART": {
+   "last": 72
+  },
+  "DISTANCE": {
+   "current": 5860
+  },
+  "PAI": {
+   "totalpai": 64
+  },
+  "WEATHER": {
+   "curAirIconIndex": 0,
+   "forecast": {
+    "tideData": {
+     "count": 1,
+     "data": [
+      {
+       "sunrise": {
+        "hour": 7,
+        "minute": 21
+       },
+       "sunset": {
+        "hour": 18,
+        "minute": 21
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "bound": {
+  "FLOOR": {
+   "value": "7",
+   "level": 70
+  },
+  "WEATHER_CURRENT": {
+   "value": "18\u00b0"
+  }
+ },
+ "glances": []
+}

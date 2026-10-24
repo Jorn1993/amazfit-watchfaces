@@ -1,0 +1,83 @@
+{
+ "name": "imperial12h",
+ "edit": [
+  "calories",
+  "heart",
+  "distance",
+  "steps",
+  "stand",
+  "weather",
+  "color",
+  "off"
+ ],
+ "sensors": {
+  "TIME": {
+   "hour": 19,
+   "minute": 5,
+   "week": 4,
+   "day": 15,
+   "month": 10
+  },
+  "BATTERY": {
+   "current": 82
+  },
+  "STEP": {
+   "current": 12486,
+   "target": 15000
+  },
+  "CALORIE": {
+   "current": 486,
+   "target": 800
+  },
+  "HEART": {
+   "last": 72
+  },
+  "DISTANCE": {
+   "current": 5860
+  },
+  "PAI": {
+   "totalpai": 64
+  },
+  "WEATHER": {
+   "curAirIconIndex": 0,
+   "forecast": {
+    "tideData": {
+     "count": 1,
+     "data": [
+      {
+       "sunrise": {
+        "hour": 7,
+        "minute": 21
+       },
+       "sunset": {
+        "hour": 18,
+        "minute": 21
+       }
+      }
+     ]
+    }
+   }
+  },
+  "STAND": {
+   "current": 8,
+   "target": 12
+  }
+ },
+ "bound": {
+  "FLOOR": {
+   "value": "7",
+   "level": 70
+  },
+  "WEATHER_CURRENT": {
+   "value": "18°"
+  }
+ },
+ "glances": [
+  "disconnect",
+  "dnd",
+  "alarm",
+  "lock"
+ ],
+ "is12h": true,
+ "imperial": true
+}

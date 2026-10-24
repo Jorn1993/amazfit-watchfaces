@@ -1,0 +1,6 @@
+# Exact versions so generated assets are reproducible; Dependabot proposes updates weekly.
+pillow==12.3.0
+cairosvg==2.9.1
+fonttools==4.65.0
+numpy==2.5.3
+qrcode==8.2

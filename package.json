@@ -1,0 +1,20 @@
+{
+  "name": "zepp-watch-faces",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zepp OS watch faces by raetha: Sextant and friends",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "assets": "python3 tools/generate.py",
+    "test": "node tools/harness/run_scenarios.mjs",
+    "screenshots": "node tools/emu/screenshots.mjs",
+    "new-face": "python3 tools/new_face.py",
+    "qr": "python3 tools/make_qr.py",
+    "previews": "node tools/harness/run_scenarios.mjs --render",
+    "emu": "node tools/emu/emu.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "ws": "8.22.0"
+  }
+}

@@ -1,0 +1,80 @@
+{
+ "name": "alt",
+ "edit": [
+  "pai",
+  "spo2",
+  "sun",
+  "humidity",
+  "stand",
+  "weather",
+  "color",
+  "auto"
+ ],
+ "sensors": {
+  "TIME": {
+   "hour": 7,
+   "minute": 45,
+   "week": 7,
+   "day": 2,
+   "month": 3
+  },
+  "BATTERY": {
+   "current": 18
+  },
+  "STEP": {
+   "current": 12486,
+   "target": 15000
+  },
+  "CALORIE": {
+   "current": 486,
+   "target": 800
+  },
+  "HEART": {
+   "last": 72
+  },
+  "DISTANCE": {
+   "current": 5860
+  },
+  "PAI": {
+   "totalpai": 64
+  },
+  "WEATHER": {
+   "curAirIconIndex": 7,
+   "forecast": {
+    "tideData": {
+     "count": 1,
+     "data": [
+      {
+       "sunrise": {
+        "hour": 7,
+        "minute": 21
+       },
+       "sunset": {
+        "hour": 18,
+        "minute": 21
+       }
+      }
+     ]
+    }
+   }
+  },
+  "STAND": {
+   "current": 9,
+   "target": 12
+  },
+  "SPO2": {
+   "value": 98
+  }
+ },
+ "bound": {
+  "HUMIDITY": {
+   "value": "61%"
+  },
+  "WEATHER_CURRENT": {
+   "value": "11\u00b0"
+  }
+ },
+ "glances": [
+  "lock"
+ ]
+}

@@ -1,0 +1,73 @@
+{
+  "configVersion": "v3",
+  "app": {
+    "appId": 21319240,
+    "appName": "Nautic Palette",
+    "appType": "watchface",
+    "version": {
+      "code": 1,
+      "name": "0.1.0"
+    },
+    "icon": "icon.png",
+    "vender": "Nautic Palette",
+    "cover": [
+      "cover.png"
+    ],
+    "description": "Nautic Palette: customizable 480x480 watchface with Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes."
+  },
+  "runtime": {
+    "apiVersion": {
+      "compatible": "4.2",
+      "target": "4.2",
+      "minVersion": "4.2"
+    }
+  },
+  "permissions": [
+    "data:user.hd.step",
+    "data:user.hd.calorie",
+    "data:user.hd.heart_rate",
+    "data:user.hd.distance",
+    "data:user.hd.pai",
+    "data:user.hd.stand",
+    "data:user.hd.fat_burning",
+    "data:user.hd.spo2",
+    "data:user.hd.stress",
+    "data:user.hd.sleep",
+    "data:user.hd.workout",
+    "data:user.hd.body_temp",
+    "device:os.barometer",
+    "device:os.compass"
+  ],
+  "targets": {
+    "common": {
+      "module": {
+        "watchface": {
+          "path": "watchface/index",
+          "main": 1,
+          "editable": 1,
+          "lockscreen": 1,
+          "photoscreen": 0
+        }
+      },
+      "platforms": [
+        {
+          "st": "r"
+        }
+      ],
+      "designWidth": 480
+    }
+  },
+  "i18n": {
+    "en-US": {
+      "appName": "Nautic Palette"
+    },
+    "zh-CN": {
+      "appName": "Nautic Palette"
+    },
+    "zh-TW": {
+      "appName": "Nautic Palette"
+    }
+  },
+  "defaultLanguage": "en-US",
+  "debug": false
+}

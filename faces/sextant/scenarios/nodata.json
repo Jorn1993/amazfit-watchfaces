@@ -1,0 +1,59 @@
+{
+ "name": "nodata",
+ "edit": [
+  "calories",
+  "heart",
+  "distance",
+  "steps",
+  "stand",
+  "weather",
+  "color",
+  "auto"
+ ],
+ "sensors": {
+  "TIME": {
+   "hour": 10,
+   "minute": 8,
+   "week": 4,
+   "day": 15,
+   "month": 10
+  },
+  "BATTERY": {
+   "current": 82
+  },
+  "STEP": {
+   "current": 12486,
+   "target": 15000
+  },
+  "CALORIE": {
+   "current": 486,
+   "target": 800
+  },
+  "HEART": {
+   "last": 0
+  },
+  "DISTANCE": {
+   "current": 5860
+  },
+  "PAI": {
+   "totalpai": 64
+  },
+  "WEATHER": {
+   "curAirIconIndex": 25,
+   "forecast": {
+    "tideData": {
+     "count": 0,
+     "data": []
+    }
+   }
+  }
+ },
+ "bound": {
+  "WEATHER_CURRENT": {
+   "value": "--"
+  }
+ },
+ "glances": [
+  "disconnect"
+ ]
+}

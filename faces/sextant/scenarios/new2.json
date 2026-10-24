@@ -1,0 +1,107 @@
+{
+ "name": "new2",
+ "edit": [
+  "sleepscore",
+  "trainload",
+  "altitude",
+  "pressure",
+  "compass",
+  "moon",
+  "color",
+  "off"
+ ],
+ "sensors": {
+  "TIME": {
+   "hour": 10,
+   "minute": 8,
+   "week": 4,
+   "day": 15,
+   "month": 10
+  },
+  "BATTERY": {
+   "current": 82
+  },
+  "STEP": {
+   "current": 12486,
+   "target": 15000
+  },
+  "CALORIE": {
+   "current": 486,
+   "target": 800
+  },
+  "HEART": {
+   "last": 72,
+   "resting": 58
+  },
+  "DISTANCE": {
+   "current": 5860
+  },
+  "PAI": {
+   "totalpai": 64
+  },
+  "WEATHER": {
+   "curAirIconIndex": 0,
+   "forecast": {
+    "tideData": {
+     "count": 1,
+     "data": [
+      {
+       "sunrise": {
+        "hour": 7,
+        "minute": 21
+       },
+       "sunset": {
+        "hour": 18,
+        "minute": 21
+       }
+      }
+     ]
+    },
+    "forecastData": {
+     "count": 1,
+     "data": [
+      {
+       "high": 21,
+       "low": 12,
+       "index": 3
+      }
+     ]
+    }
+   }
+  },
+  "SLEEP": {
+   "total": 452,
+   "score": 84
+  },
+  "WORKOUT": {
+   "vo2max": 48,
+   "load": 245,
+   "recovery": 36
+  },
+  "BAROMETER": {
+   "altitude": 312,
+   "pressure": 1013
+  },
+  "BODY_TEMP": {
+   "current": 36.4
+  },
+  "COMPASS": {
+   "angle": 312
+  }
+ },
+ "bound": {
+  "FLOOR": {
+   "value": "7",
+   "level": 70
+  },
+  "WEATHER_CURRENT": {
+   "value": "18\u00b0"
+  }
+ },
+ "glances": [
+  "disconnect",
+  "dnd",
+  "alarm",
+  "lock"
+ ]
+}
