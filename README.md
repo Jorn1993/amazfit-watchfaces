@@ -29,18 +29,22 @@ The package reuses byte-for-byte identical generated bitmaps without altering th
 
 **[Open the WatchWit installation page](https://jorn1993.github.io/amazfit-watchfaces/)**
 
-- **[Save QR image for WatchWit v0.2.0](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/WatchWit-v0.2.0-QR.png)** — includes the watchface name and version number, and can be saved to your phone's gallery.
+- **[Save QR image for WatchWit v0.2.1](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/WatchWit-v0.2.1-QR.png)** — includes the watchface name and version number, and can be saved to your phone's gallery.
 - [Download the current ZPK](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk)
 
 In the Zepp app, select **Profile → your watch → Developer Mode → Scan** and scan the QR code displayed on another screen.
 
 If Developer Mode is not visible, open **Zepp → Profile → Settings → About** and tap the Zepp logo seven times. The QR contains `zpkd1://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk`; Zepp downloads the package from that public HTTPS address.
 
-Once installed, the face is labeled **WatchWit v0.2.0** in the watchface selection screen, so the installed version is visible without opening Zepp. Long-press the face, choose **Edit**, and select a theme in the editor.
+Once installed, the face is labeled **WatchWit v0.2.1** in the watchface selection screen, so the installed version is visible without opening Zepp. Long-press the face, choose **Edit**, and select a theme in the editor.
 
 ## Complication selection (v0.2.0)
 
 On the watch, long-press WatchWit and open **Edit**. Tap any complication slot to open Zepp OS's built-in **full-screen selection list** rather than cycling one-by-one. Select the item you want and finish editing normally. This uses the native Zepp watchface `select_list` setting; actual appearance and behavior should be confirmed on the Balance 2.
+
+## Editor improvements (v0.2.1)
+
+The complication list now supplies an icon asset for each metric, in addition to the existing editor preview. On return from edit mode, the face avoids an unnecessary second full update after a theme change. Whether Zepp firmware displays icons in the native selector must be confirmed on an actual Balance 2.
 
 ## Battery and refresh behavior
 
