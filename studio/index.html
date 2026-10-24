@@ -66,8 +66,8 @@ function rectangle(e){return {l:e.x,r:e.x+e.w,t:e.y,b:e.y+e.h}}
 function gaugeParts(e){
  const cx=e.x+e.w/2, cy=e.y+e.h/2;
  const icon={x:cx-12,y:e.y+11,w:24,h:24};
- const val={x:cx-e.w*.43,y:e.y+38,w:e.w*.86,h:Math.min(32,e.fontSize+6)};
- const label={x:cx-e.w*.38,y:e.y+74,w:e.w*.76,h:15};
+ const val={x:cx-34,y:e.y+37,w:68,h:Math.min(31,e.fontSize+7)};
+ const label={x:cx-28,y:e.y+64,w:56,h:13};
  return {icon,val,label};
 }
 function gaugeFits(e){
@@ -79,7 +79,7 @@ function gaugeFits(e){
  }
  ctx.font='750 '+e.fontSize+'px system-ui';
  if(ctx.measureText(viewValue(e)).width>parts.val.w)return 'value text is too wide for inner circle';
- ctx.font='12px system-ui';
+ ctx.font='10px system-ui';
  if(ctx.measureText(e.label||'').width>parts.label.w)return 'label text is too wide for inner circle';
  return null;
 }
@@ -131,7 +131,7 @@ function render(){
   const part=(name,txt,style)=>'<span style="position:absolute;left:'+(parts[name].x-e.x)+'px;top:'+(parts[name].y-e.y)+'px;width:'+parts[name].w+'px;height:'+parts[name].h+'px;display:grid;place-items:center;white-space:nowrap;'+style+'">'+esc(txt)+'</span>';
   el.innerHTML=part('icon',e.symbol||'•','font-size:20px;color:'+esc(e.color))+
    part('val',viewValue(e),'font-size:'+e.fontSize+'px;font-weight:750;')+
-   part('label',e.label||'','font-size:12px;color:#adc1d5;');
+   part('label',e.label||'','font-size:10px;color:#adc1d5;');
  }else if(e.type==='card')el.innerHTML='<span class="symbol" style="font-size:20px;color:'+esc(e.color)+'">'+esc(e.symbol||'•')+'</span><span class="value">'+esc(viewValue(e))+'</span><span class="subtitle">'+esc(e.label)+'</span>';
  else el.textContent=viewValue(e);
  el.dataset.id=e.id;el.addEventListener('pointerdown',startDrag);
