@@ -1,11 +1,11 @@
 {
   "configVersion": "v3",
   "app": {
-    "appId": 21319242,
+    "appId": 21319243,
     "appName": "WatchWit Reference v0.2.1",
     "appType": "watchface",
     "version": {
-      "code": 4,
+      "code": 1,
       "name": "0.2.1"
     },
     "icon": "icon.png",
