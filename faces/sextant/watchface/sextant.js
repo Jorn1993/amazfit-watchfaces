@@ -351,7 +351,7 @@ export function sextantFace(L) {
           const r = t.r_center;                // ARC_PROGRESS radius is the centre of the stroke
           // whole-degree angles only: the firmware truncates arc angles (see geometry.tick_arc)
           const base = {
-            center_x: px_(240), center_y: px_(240), radius: px_(r), line_width: px_(t.len),
+            center_x: px_(t.cx ?? 240), center_y: px_(t.cy ?? 240), radius: px_(r), line_width: px_(t.len),
             start_angle: t.s, end_angle: t.e, level: 100, corner_flag: 3, show_level: NORMAL,
           };
           const widget = this.w(hmUI.widget.ARC_PROGRESS, { ...base, color: unit.dim });
