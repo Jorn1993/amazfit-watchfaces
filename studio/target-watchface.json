@@ -19,7 +19,7 @@
       "value": "8,560",
       "label": "STEPS",
       "symbol": "✦",
-      "fontSize": 28,
+      "fontSize": 22,
       "color": "#28cbf4"
     },
     {
@@ -32,7 +32,7 @@
       "value": "72",
       "label": "BPM",
       "symbol": "♥",
-      "fontSize": 28,
+      "fontSize": 22,
       "color": "#ff6264"
     },
     {
@@ -45,7 +45,7 @@
       "value": "420",
       "label": "CAL",
       "symbol": "◆",
-      "fontSize": 28,
+      "fontSize": 22,
       "color": "#ffb33c"
     },
     {
@@ -84,7 +84,7 @@
       "value": "85%",
       "label": "BATTERY",
       "symbol": "▣",
-      "fontSize": 27,
+      "fontSize": 22,
       "color": "#4bdf75"
     },
     {
@@ -97,7 +97,7 @@
       "value": "24°",
       "label": "PARTLY CLOUDY",
       "symbol": "☀",
-      "fontSize": 27,
+      "fontSize": 22,
       "color": "#ffcf4a"
     },
     {
@@ -110,7 +110,7 @@
       "value": "6.2",
       "label": "KM",
       "symbol": "⌖",
-      "fontSize": 27,
+      "fontSize": 22,
       "color": "#3ccafc"
     },
     {
