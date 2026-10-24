@@ -378,7 +378,7 @@ export function sextantFace(L) {
         // Orbit card caption: aligned to its capsule, not the old perimeter.
         const captionY = (i === 0 || i === 1 || i === 5) ? 139 : 401;
         const caption = this.text({
-          x: box.cx - 53, y: captionY, w: 48, h: 13, size: 10,
+          x: box.cx - 53, y: captionY, w: 52, h: 13, size: 10,
         }, { color: C.muted });
         const shortLabels = { heart: 'BPM', calories: 'CAL', battery: 'BATTERY', distance: 'KM', weather: 'WEATHER' };
         caption.setProperty(hmUI.prop.TEXT, shortLabels[id] || L.metrics[id].title.toUpperCase().slice(0, 11));
