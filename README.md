@@ -1,4 +1,4 @@
-# Nautic Palette
+# WatchWit
 
 Independent Zepp OS watchface project, maintained in this repository. Completely separate from Luce and Movement Platform.
 
@@ -21,26 +21,26 @@ Available themes:
 | Orange | Orange throughout |
 | Pink | Pink throughout |
 
-## Size optimization (v0.1.1)
+## Size optimization (introduced in v0.1.1)
 
 The package reuses byte-for-byte identical generated bitmaps without altering the watchface design: Mix shares Color complication icons and progress-marker graphics; weather conditions with the same icon or description share one image; single-hue palettes reuse their uniform marker graphics. All eight editable color themes, automatic night mode, and Always-On Display remain available. The v0.1.1 version increment lets Zepp recognize this as an update to v0.1.0.
 
 ## Install through Zepp
 
-**[Open the Nautic Palette installation page](https://jorn1993.github.io/amazfit-watchfaces/)**
+**[Open the WatchWit installation page](https://jorn1993.github.io/amazfit-watchfaces/)**
 
-- **[Save QR image for Nautic Palette v0.1.1](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/Nautic-Palette-v0.1.1-QR.png)** — includes the watchface name and version number, and can be saved to your phone's gallery.
+- **[Save QR image for WatchWit v0.1.2](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/WatchWit-v0.1.2-QR.png)** — includes the watchface name and version number, and can be saved to your phone's gallery.
 - [Download the current ZPK](https://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk)
 
 In the Zepp app, select **Profile → your watch → Developer Mode → Scan** and scan the QR code displayed on another screen.
 
 If Developer Mode is not visible, open **Zepp → Profile → Settings → About** and tap the Zepp logo seven times. The QR contains `zpkd1://jorn1993.github.io/amazfit-watchfaces/nautic-palette/nautic-palette.zpk`; Zepp downloads the package from that public HTTPS address.
 
-Once installed, long-press the face, choose **Edit**, and select the theme in the watchface's editor.
+Once installed, the face is labeled **WatchWit v0.1.2** in the watchface selection screen, so the installed version is visible without opening Zepp. Long-press the face, choose **Edit**, and select a theme in the editor.
 
 ## Battery and refresh behavior
 
-Nautic Palette is an event-driven digital watchface. The time refreshes once per minute; sensor changes can trigger additional complication updates, throttled to at most once per second. Always-On Display draws a simplified face and does not redraw live complications. The compass sensor is started only when a compass complication is selected and the watchface is active.
+WatchWit is an event-driven digital watchface. The time refreshes once per minute; sensor changes can trigger additional complication updates, throttled to at most once per second. Always-On Display draws a simplified face and does not redraw live complications. The compass sensor is started only when a compass complication is selected and the watchface is active.
 
 Starting in v0.1.1, repeated date and battery values do not trigger redundant UI property updates. This reduces unnecessary rendering work but **does not establish a measured battery-life improvement**. Real consumption depends on your selected complications, always-on display, raise-to-wake usage, sensors, screen brightness and activity tracking.
 
