@@ -90,7 +90,7 @@ def hexrgb(h):
 METRICS = {
     # id: (title, colour, has_progress)
     "battery":  ("Battery",        "#4DE982", True),
-    "steps":    ("Steps",          "#3DDC84", True),
+    "steps":    ("Steps",          "#1DCDF9", True),
     "heart":    ("Heart rate",     "#FF4D5E", False),
     "distance": ("Distance",       "#3DA5FF", False),
     "calories": ("Calories",       "#FF8A3D", True),
