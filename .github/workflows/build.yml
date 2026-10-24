@@ -9,6 +9,7 @@ on:
       - 'lib/**'
       - 'fonts/**'
       - 'tools/**'
+      - 'studio/**'
       - 'package*.json'
       - '.github/workflows/build.yml'
   workflow_dispatch:
