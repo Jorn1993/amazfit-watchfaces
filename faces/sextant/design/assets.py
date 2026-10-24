@@ -240,7 +240,7 @@ def make_backgrounds():
             seg(240,240,225,angle,angle+5.25,10.3,colour)
         # The six raised pods. No flat rectangular complication cards.
         for cx,cy,colour in ((119,108,aqua),(240,108,red),(361,108,warm),
-                             (119,380,green),(240,380,aqua),(361,380,aqua)):
+                             (119,369,green),(240,369,aqua),(361,369,aqua)):
             svg.extend((
                 f'<circle cx="{cx}" cy="{cy+2}" r="57" fill="#02070d" opacity=".8"/>',
                 f'<circle cx="{cx}" cy="{cy}" r="55" fill="url(#pod)" stroke="#375874" stroke-width="2.6"/>',
@@ -267,7 +267,7 @@ def make_backgrounds():
                 svg.append(f'<rect x="{xx}" y="{yy}" width="20" height="2.5" rx="1" fill="#22577d"/>')
         # Accent underlines between pods, avoiding dynamic text.
         for xx in (180,300):
-            for yy in (93,361):
+            for yy in (93,351):
                 svg.append(f'<path d="M{xx} {yy}v26" stroke="#7294b1" stroke-width="1" opacity=".75"/>')
         svg.extend((f'<text x="240" y="453" font-size="16" font-weight="bold" '
                     f'fill="{aqua}" text-anchor="middle">W</text>',
