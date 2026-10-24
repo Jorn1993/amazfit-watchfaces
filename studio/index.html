@@ -179,7 +179,12 @@ $('png').onclick=()=>{if(validate().errors.length){alert('Preview export blocked
   const x=e.x,y=e.y,w=e.w,h=e.h;ctx.save();
   if(e.type==='card'||e.type==='gauge'){ctx.fillStyle='#081929';ctx.strokeStyle='#325b7b';ctx.lineWidth=2;ctx.beginPath();if(e.type==='gauge')ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2);else ctx.roundRect(x,y,w,h,19);ctx.fill();ctx.stroke()}
   ctx.textAlign='center';ctx.textBaseline='middle';const cx=x+w/2;
-  if(e.type==='card'||e.type==='gauge'){
+  if(e.type==='gauge'){
+   const p=gaugeParts(e);
+   ctx.fillStyle=e.color;ctx.font='20px system-ui';ctx.fillText(e.symbol||'•',cx,p.icon.y+p.icon.h/2,p.icon.w);
+   ctx.fillStyle='#f5f9ff';ctx.font='750 '+e.fontSize+'px system-ui';ctx.fillText(viewValue(e),cx,p.val.y+p.val.h/2,p.val.w);
+   ctx.fillStyle='#adc1d5';ctx.font='10px system-ui';ctx.fillText(e.label,cx,p.label.y+p.label.h/2,p.label.w);
+  }else if(e.type==='card'){
    ctx.fillStyle=e.color;ctx.font='20px system-ui';ctx.fillText(e.symbol||'•',cx,y+16,w-8);
    ctx.fillStyle='#f5f9ff';ctx.font='750 '+e.fontSize+'px system-ui';ctx.fillText(viewValue(e),cx,y+43,w-6);
    ctx.fillStyle='#adc1d5';ctx.font='12px system-ui';ctx.fillText(e.label,cx,y+h-12,w-6);
