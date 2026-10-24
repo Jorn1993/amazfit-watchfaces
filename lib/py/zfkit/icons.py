@@ -75,6 +75,7 @@ METRIC_SVG["moon"] = METRIC_SVG["moon_4"]
 
 # battery: the outline and cap; the face draws the charge inside it as a FILL_RECT
 BATTERY_SVG = lambda c: f'<rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="{c}" stroke-width="1.8"/><rect x="20.6" y="10" width="2" height="4" rx="1" fill="{c}"/>'
+METRIC_SVG["battery"] = BATTERY_SVG
 BATTERY_FILL_VB = (4.4, 9.4, 13.2, 5.2)      # the full charge in viewBox units (x, y, w, h): 1.5 inside the stroke
 
 GLANCE_SVG = {
