@@ -12,6 +12,10 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}
 .preset{display:block;width:100%;text-align:left;margin:8px 0}.canvas-wrap{display:grid;place-items:center;padding:16px;min-height:550px;overflow:auto}
 #watch{position:relative;width:480px;height:480px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 50% 34%,#19344f,#040a13 73%);border:2px solid #4e7897;box-shadow:0 0 0 5px #05090f,0 18px 80px #0009;touch-action:none;flex-shrink:0}
+#watch.reference{background:#020812 url("./reference-background.png") center/cover no-repeat}
+#watch.reference .element.gauge{background:transparent;border-color:transparent;box-shadow:none}
+#watch.reference .element.gauge .value{color:#f4f8fe}
+#watch.reference .element.brand:not(.selected){opacity:.18}
 #watch.guides:before{content:"";position:absolute;inset:24px;border-radius:50%;border:1px dashed #7acfac9c;pointer-events:none;z-index:5}
 #watch.guides:after{content:"";position:absolute;left:50%;top:0;height:100%;border-left:1px dashed #51799a66;pointer-events:none;z-index:5}
 .element{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;user-select:none;touch-action:none;cursor:grab;text-align:center;border:1px solid transparent}
@@ -33,7 +37,7 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 <main>
 <section class="panel"><h2>Add components</h2><button class="preset" data-add="clock">＋ Hero clock</button><button class="preset" data-add="card">＋ Complication card</button><button class="preset" data-add="gauge">＋ Circular gauge</button><button class="preset" data-add="date">＋ Date header</button><button class="preset" data-add="brand">＋ Brand label</button>
 <h2 style="margin-top:20px">Layers</h2><div id="layers"></div><p class="muted">Drag to position. Click an element to edit it. Arrow keys move by 1px; Shift + arrow moves by 10px.</p></section>
-<section class="panel stage"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Design canvas</h2><small id="count"></small></div><div class="canvas-wrap"><div id="watch" class="guides" aria-label="480 by 480 round watchface editor"></div></div><div class="notice">The dashed circle is a safe-area guide. Exported JSON is a design specification, not yet a Zepp ZPK.</div></section>
+<section class="panel stage"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Design canvas</h2><small id="count"></small></div><div class="canvas-wrap"><div id="watch" class="guides" aria-label="480 by 480 round watchface editor"></div></div><div class="notice">The dashed circle is a safe-area guide. Exported JSON is a design specification, not yet a Zepp ZPK. <a href="../preview/watchwit-reference-preview.png" target="_blank" rel="noopener" style="color:#83ccff">Open latest generated watchface preview</a>.</div></section>
 <section class="panel"><h2>Properties</h2><div id="properties"><p class="muted">Select an element.</p></div>
 <h2 style="margin-top:22px">Validation</h2><div id="summary"></div><ul id="problems"></ul>
 <h2 style="margin-top:22px">Preview scenarios</h2><label>Sample data <select id="scenario"><option value="normal">Normal</option><option value="long">Long values</option><option value="empty">Unavailable data</option></select></label>
@@ -96,6 +100,7 @@ function validate(){
 }
 function render(){
  const {errors,invalid}=validate();
+ $('watch').classList.toggle('reference',model.design==='WatchWit Reference');
  $('watch').innerHTML='';$('layers').innerHTML='';
  model.elements.forEach(e=>{
  const el=document.createElement('div');el.className='element '+e.type+(e.type==='card'?' card':'')+(selected===e.id?' selected':'')+(invalid.has(e.id)?' invalid':'');
