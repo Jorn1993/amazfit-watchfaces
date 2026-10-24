@@ -2,7 +2,7 @@
   "configVersion": "v3",
   "app": {
     "appId": 21319240,
-    "appName": "WatchWit",
+    "appName": "WatchWit v0.1.2",
     "appType": "watchface",
     "version": {
       "code": 3,
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "WatchWit"
+      "appName": "WatchWit v0.1.2"
     },
     "zh-CN": {
-      "appName": "WatchWit"
+      "appName": "WatchWit v0.1.2"
     },
     "zh-TW": {
-      "appName": "WatchWit"
+      "appName": "WatchWit v0.1.2"
     }
   },
   "defaultLanguage": "en-US",
