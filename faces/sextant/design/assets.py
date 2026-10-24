@@ -238,6 +238,23 @@ def make_backgrounds():
                 if low <= angle < hi:
                     colour=c if angle < low+(hi-low)*.76 else '#35485e'
             seg(240,240,225,angle,angle+5.25,10.3,colour)
+        # Central body with shaped shoulder silhouette and cyan inset rails.
+        shoulder=('M 48 171 Q 58 163 81 162 L 139 162 Q 154 161 164 158 '
+                  'Q 172 155 190 155 L 291 155 Q 310 155 317 156 '
+                  'Q 325 161 342 162 L 400 162 Q 421 163 432 172 '
+                  'Q 445 186 445 209 L 445 289 Q 443 303 425 309 '
+                  'Q 409 313 393 313 L 87 313 Q 68 313 54 307 '
+                  'Q 36 307 36 286 L 36 209 Q 36 185 48 171 Z')
+        svg += [f'<path d="{shoulder}" fill="#081726" stroke="#2c4e68" stroke-width="3"/>',
+                f'<path d="{shoulder}" fill="none" stroke="{aqua}" stroke-width="1.2" opacity=".6"/>',
+                '<rect x="48" y="172" width="384" height="141" rx="23" fill="url(#panel)" stroke="#267ea9" stroke-width="2"/>',
+                f'<rect x="43" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>',
+                f'<rect x="432" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>']
+        for yy in (210,223,236,249):
+            for xx in (60,398):
+                svg.append(f'<rect x="{xx}" y="{yy}" width="20" height="2.5" rx="1" fill="#22577d"/>')
+        # Raised pod rims are composed after the central panel. This avoids
+        # the panel clipping their curved outlines or gauge indicators.
         # The six raised pods. No flat rectangular complication cards.
         for cx,cy,colour in ((119,108,aqua),(240,108,red),(361,108,warm),
                              (119,369,green),(240,369,aqua),(361,369,aqua)):
@@ -250,28 +267,14 @@ def make_backgrounds():
                 angle=197+j*10
                 seg(cx,cy,52,angle,angle+7.2,6.3,colour if j<9 else '#34455c')
             seg(cx,cy,56,8,161,1.1,'#2e668d',.70)
-        # Central body with shaped shoulder silhouette and cyan inset rails.
-        shoulder=('M 48 171 Q 58 163 81 162 L 139 162 Q 154 161 164 151 '
-                  'Q 172 146 190 146 L 291 146 Q 310 146 317 151 '
-                  'Q 325 161 342 162 L 400 162 Q 421 163 432 172 '
-                  'Q 445 186 445 209 L 445 289 Q 443 307 425 319 '
-                  'Q 409 327 393 327 L 87 327 Q 68 327 54 317 '
-                  'Q 36 307 36 286 L 36 209 Q 36 185 48 171 Z')
-        svg += [f'<path d="{shoulder}" fill="#081726" stroke="#2c4e68" stroke-width="3"/>',
-                f'<path d="{shoulder}" fill="none" stroke="{aqua}" stroke-width="1.2" opacity=".6"/>',
-                '<rect x="48" y="172" width="384" height="141" rx="23" fill="url(#panel)" stroke="#267ea9" stroke-width="2"/>',
-                f'<rect x="43" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>',
-                f'<rect x="432" y="194" width="5" height="93" rx="2.5" fill="{aqua}"/>']
-        for yy in (210,223,236,249):
-            for xx in (60,398):
-                svg.append(f'<rect x="{xx}" y="{yy}" width="20" height="2.5" rx="1" fill="#22577d"/>')
+        svg.append('<path d="M239 176v19" stroke="#7197b3" opacity=".8" stroke-width="1"/>')
         # Accent underlines between pods, avoiding dynamic text.
         for xx in (180,300):
             for yy in (93,351):
                 svg.append(f'<path d="M{xx} {yy}v26" stroke="#7294b1" stroke-width="1" opacity=".75"/>')
-        svg.extend((f'<text x="240" y="453" font-size="16" font-weight="bold" '
+        svg.extend((f'<text x="240" y="443" font-size="16" font-weight="bold" '
                     f'fill="{aqua}" text-anchor="middle">W</text>',
-                    '<text x="240" y="466" font-size="7.5" letter-spacing="3.4" '
+                    '<text x="240" y="456" font-size="7.5" letter-spacing="3.4" '
                     'fill="#afc1d4" text-anchor="middle">WATCHWIT</text>','</svg>'))
         artwork=cairosvg.svg2png(bytestring=''.join(svg).encode(),output_width=480,output_height=480)
         img=Image.open(io.BytesIO(artwork)).convert('RGB')
@@ -349,7 +352,7 @@ def make_time_digits():
                 cyan.putalpha(m)
                 save(down(cyan), f"time_minute/{name}/{ch}.png")
         # colon
-        acc = K.THEMES[name]["accent"]
+        acc = (31, 203, 245) if name == "color" else K.THEMES[name]["accent"]
         cimg = Image.new("RGBA", (colon_w * S, cell_h * S), (0, 0, 0, 0))
         cd = ImageDraw.Draw(cimg)
         r = 0.04 * K.TIME_PX
