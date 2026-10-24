@@ -28,7 +28,7 @@ main{display:grid;grid-template-columns:230px minmax(350px,1fr) 280px;gap:16px;p
 @media(max-width:600px){main{display:flex;flex-direction:column}.panel{width:100%}.canvas-wrap{justify-content:start;overflow:auto}.stage{order:0}}
 </style></head><body>
 <header><div><h1>WatchWit Studio <small>· Beta</small></h1><small>Amazfit Balance 2 · 480 × 480 px · Visual editor</small></div>
-<div class="actions"><button id="new">New</button><button id="guides">Guides</button><button id="undo">Undo</button><button id="save">Save locally</button><button id="export">Export JSON</button><label class="file-button">Import JSON <input hidden id="import" type="file" accept=".json,application/json"></label></div></header>
+<div class="actions"><button id="new">New</button><button id="guides">Guides</button><button id="undo">Undo</button><button id="save">Save locally</button><button id="export">Export JSON</button><button id="png">Export PNG preview</button><label class="file-button">Import JSON <input hidden id="import" type="file" accept=".json,application/json"></label></div></header>
 <main>
 <section class="panel"><h2>Add components</h2><button class="preset" data-add="clock">＋ Hero clock</button><button class="preset" data-add="card">＋ Complication card</button><button class="preset" data-add="date">＋ Date header</button><button class="preset" data-add="brand">＋ Brand label</button>
 <h2 style="margin-top:20px">Layers</h2><div id="layers"></div><p class="muted">Drag to position. Click an element to edit it. Arrow keys move by 1px; Shift + arrow moves by 10px.</p></section>
@@ -111,6 +111,26 @@ $('save').onclick=()=>{localStorage.setItem('watchwit-studio-draft-v1',JSON.stri
 $('scenario').onchange=ev=>{scenario=ev.target.value;render()};
 function download(name,content){const blob=new Blob([content],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 $('export').onclick=()=>download('watchwit-layout.json',JSON.stringify({...model,validation:validate().errors},null,2));
+$('png').onclick=()=>{
+ const c=document.createElement('canvas');c.width=c.height=480;const ctx=c.getContext('2d');
+ ctx.fillStyle='#020812';ctx.fillRect(0,0,480,480);ctx.save();ctx.beginPath();ctx.arc(240,240,239,0,Math.PI*2);ctx.clip();
+ const g=ctx.createRadialGradient(240,190,10,240,240,260);g.addColorStop(0,'#19344f');g.addColorStop(1,'#040a13');ctx.fillStyle=g;ctx.fillRect(0,0,480,480);
+ ctx.strokeStyle='#4e7897';ctx.lineWidth=2;ctx.beginPath();ctx.arc(240,240,237,0,Math.PI*2);ctx.stroke();
+ model.elements.forEach(e=>{
+  const x=e.x,y=e.y,w=e.w,h=e.h;ctx.save();
+  if(e.type==='card'){ctx.fillStyle='#081929';ctx.strokeStyle='#325b7b';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x,y,w,h,19);ctx.fill();ctx.stroke()}
+  ctx.textAlign='center';ctx.textBaseline='middle';const cx=x+w/2;
+  if(e.type==='card'){
+   ctx.fillStyle=e.color;ctx.font='20px system-ui';ctx.fillText(e.symbol||'•',cx,y+16,w-8);
+   ctx.fillStyle='#f5f9ff';ctx.font='750 '+e.fontSize+'px system-ui';ctx.fillText(viewValue(e),cx,y+43,w-6);
+   ctx.fillStyle='#adc1d5';ctx.font='12px system-ui';ctx.fillText(e.label,cx,y+h-12,w-6);
+  }else{
+   ctx.fillStyle=e.color;ctx.font=(e.type==='clock'?'850 ':'650 ')+e.fontSize+'px system-ui';ctx.fillText(viewValue(e),cx,y+h/2,w-4);
+  }
+  ctx.restore()
+ });
+ ctx.restore();c.toBlob(blob=>{if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='watchwit-studio-preview-480.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},'image/png');
+};
 $('import').onchange=async ev=>{const file=ev.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(data.schemaVersion!==1||data.canvas?.width!==480||!Array.isArray(data.elements)||data.elements.length>150||data.elements.some(e=>!TYPES.includes(e.type)||!e.id))throw Error('Incompatible layout');snapshot();model={...data,elements:data.elements};selected=null;render()}catch(err){alert('Import failed: '+err.message)}ev.target.value=''};
 try{model=JSON.parse(localStorage.getItem('watchwit-studio-draft-v1') || 'null')}catch{}
 if(!model||!Array.isArray(model.elements))model=sample();render();
