@@ -58,7 +58,7 @@ jobs:
           with zipfile.ZipFile(p) as z:
               with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as device:
                   m=json.loads(device.read('app.json'))
-                  assert m['app']['appName']=='WatchWit'
+                  assert m['app']['appName']=='WatchWit v0.1.2'
                   assert m['app']['appId']==21319240
                   assert m['app']['version']['name']=='0.1.2'
                   assert m['app']['version']['code']==3
@@ -77,7 +77,7 @@ jobs:
           from PIL import Image, ImageDraw, ImageFont
 
           manifest=json.loads(Path('faces/sextant/app.json').read_text())
-          name=manifest['app']['appName']
+          name=manifest['app']['appName'].rsplit(' v',1)[0]
           version=manifest['app']['version']['name']
           slug=re.sub(r'[^A-Za-z0-9]+','-',name).strip('-')
           filename=f'{slug}-v{version}-QR.png'
