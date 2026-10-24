@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "device": "Amazfit Balance 2",
+  "canvas": {
+    "width": 480,
+    "height": 480,
+    "round": true,
+    "safeInset": 14
+  },
+  "design": "WatchWit Reference",
+  "elements": [
+    {
+      "id": "steps",
+      "type": "card",
+      "x": 63,
+      "y": 55,
+      "w": 110,
+      "h": 102,
+      "value": "8,560",
+      "label": "STEPS",
+      "symbol": "✦",
+      "fontSize": 28,
+      "color": "#28cbf4"
+    },
+    {
+      "id": "heart",
+      "type": "card",
+      "x": 185,
+      "y": 55,
+      "w": 110,
+      "h": 102,
+      "value": "72",
+      "label": "BPM",
+      "symbol": "♥",
+      "fontSize": 28,
+      "color": "#ff6264"
+    },
+    {
+      "id": "calories",
+      "type": "card",
+      "x": 307,
+      "y": 55,
+      "w": 110,
+      "h": 102,
+      "value": "420",
+      "label": "CAL",
+      "symbol": "◆",
+      "fontSize": 28,
+      "color": "#ffb33c"
+    },
+    {
+      "id": "date",
+      "type": "date",
+      "x": 99,
+      "y": 169,
+      "w": 282,
+      "h": 25,
+      "value": "MON  |  APR 28",
+      "label": "",
+      "symbol": "",
+      "fontSize": 20,
+      "color": "#48cefb"
+    },
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 49,
+      "y": 202,
+      "w": 382,
+      "h": 110,
+      "value": "10:08",
+      "label": "",
+      "symbol": "",
+      "fontSize": 112,
+      "color": "#f6f9ff"
+    },
+    {
+      "id": "battery",
+      "type": "card",
+      "x": 63,
+      "y": 331,
+      "w": 110,
+      "h": 100,
+      "value": "85%",
+      "label": "BATTERY",
+      "symbol": "▣",
+      "fontSize": 27,
+      "color": "#4bdf75"
+    },
+    {
+      "id": "weather",
+      "type": "card",
+      "x": 185,
+      "y": 331,
+      "w": 110,
+      "h": 100,
+      "value": "24°",
+      "label": "WEATHER",
+      "symbol": "☀",
+      "fontSize": 27,
+      "color": "#ffcf4a"
+    },
+    {
+      "id": "distance",
+      "type": "card",
+      "x": 307,
+      "y": 331,
+      "w": 110,
+      "h": 100,
+      "value": "6.2",
+      "label": "KM",
+      "symbol": "⌖",
+      "fontSize": 27,
+      "color": "#3ccafc"
+    },
+    {
+      "id": "brand",
+      "type": "brand",
+      "x": 171,
+      "y": 449,
+      "w": 138,
+      "h": 15,
+      "value": "WATCHWIT",
+      "label": "",
+      "symbol": "",
+      "fontSize": 10,
+      "color": "#abc2d9"
+    }
+  ]
+}
