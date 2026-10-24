@@ -1,5 +1,14 @@
 # WatchWit
 
+## Two independent watchfaces
+
+- **WatchWit Classic** — stable, original design; source: `main`; install: https://jorn1993.github.io/amazfit-watchfaces/ (app ID `21319240`).
+- **WatchWit Orbit** — separate original orbital/card design; source: [`watchwit-orbit`](https://github.com/Jorn1993/amazfit-watchfaces/tree/watchwit-orbit); install: https://jorn1993.github.io/amazfit-watchfaces/preview/ (app ID `21319242`).
+
+Orbit is a separate app, not a replacement for Classic. Its release builds include a geometry check and a generated-runtime layout check.
+
+
+
 Independent Zepp OS watchface project, maintained in this repository. Completely separate from Luce and Movement Platform.
 
 ## Watchface
