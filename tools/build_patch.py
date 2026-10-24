@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Build-time Sextant remix: Mix plus 5 full-face color themes.
-Original Sextant by raetha, CC BY-NC-SA 4.0. Noncommercial personal derivative.
-"""
+"""Apply Nautic Palette themes and preserve the existing watchface layout."""
 import json
 import sys
 from pathlib import Path
@@ -18,7 +16,7 @@ def edit(path, replacements):
     print("Patched:",path)
 
 palette = """
-# Extra palettes for Nautic Palette (derived from Sextant).
+# Extra palettes for Nautic Palette.
 THEMES["mix"] = dict(
     text=(248,249,252), muted=(181,185,193), accent=(244,246,250),
     desc=(239,242,247), divider=(69,73,83),
@@ -108,8 +106,8 @@ manifest=root/"faces/sextant/app.json"
 m=json.loads(manifest.read_text())
 m["app"]["appId"]=21319240
 m["app"]["appName"]="Nautic Palette"
-m["app"]["vender"]="Personal remix (original by raetha)"
-m["app"]["description"]="Noncommercial Sextant derivative with new palettes. Original by raetha, CC BY-NC-SA 4.0"
+m["app"]["vender"]="Nautic Palette"
+m["app"]["description"]="Nautic Palette: customizable 480x480 watchface with Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes."
 m["app"]["version"]={"code":1,"name":"0.1.0"}
 for item in m["i18n"].values(): item["appName"]="Nautic Palette"
 manifest.write_text(json.dumps(m,indent=2,ensure_ascii=False)+"\n")
