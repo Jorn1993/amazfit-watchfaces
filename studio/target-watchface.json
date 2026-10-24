@@ -11,7 +11,7 @@
   "elements": [
     {
       "id": "steps",
-      "type": "card",
+      "type": "gauge",
       "x": 63,
       "y": 55,
       "w": 110,
@@ -24,7 +24,7 @@
     },
     {
       "id": "heart",
-      "type": "card",
+      "type": "gauge",
       "x": 185,
       "y": 55,
       "w": 110,
@@ -37,7 +37,7 @@
     },
     {
       "id": "calories",
-      "type": "card",
+      "type": "gauge",
       "x": 307,
       "y": 55,
       "w": 110,
@@ -76,7 +76,7 @@
     },
     {
       "id": "battery",
-      "type": "card",
+      "type": "gauge",
       "x": 63,
       "y": 319,
       "w": 110,
@@ -89,7 +89,7 @@
     },
     {
       "id": "weather",
-      "type": "card",
+      "type": "gauge",
       "x": 185,
       "y": 319,
       "w": 110,
@@ -102,7 +102,7 @@
     },
     {
       "id": "distance",
-      "type": "card",
+      "type": "gauge",
       "x": 307,
       "y": 319,
       "w": 110,
