@@ -781,7 +781,7 @@ def make_edit_assets(L):
         save(Image.eval(bg.convert("RGB"), lambda v: int(v * 0.45)).convert("RGBA"), f"edit/bg_{theme}.png")
 
     # per-metric previews: icon above a sample value
-    samples = dict(steps="8,412", heart="72", distance="5.86", calories="486", floors="7", pai="64", stand="9",
+    samples = dict(battery="85%", steps="8,412", heart="72", distance="5.86", calories="486", floors="7", pai="64", stand="9",
                    fatburn="23", spo2="98%", stress="27", uvi="3", humidity="61%", aqi="42", sun="18:21", weather="18°",
                    resting="58", sleep="7:32", sleepscore="84", bodytemp="36.4°", vo2max="48", trainload="245",
                    recovery="36h", altitude="312m", pressure="1013", compass="312° NW", moon="73%", forecast="21/12°")
