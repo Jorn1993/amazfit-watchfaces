@@ -62,7 +62,7 @@ jobs:
                   m=json.loads(device.read('app.json'))
                   assert m['app']['appName']=='WatchWit v0.2.1'
                   assert m['app']['appId']==21319240
-                  assert m['app']['version']['name']=='0.2.2'
+                  assert m['app']['version']['name']=='0.2.1'
                   assert m['app']['version']['code']==5
                   assert 11141376 in [x.get('deviceSource') for x in m['platforms']]
                   assets=device.namelist()
