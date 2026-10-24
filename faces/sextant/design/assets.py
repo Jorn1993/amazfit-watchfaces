@@ -617,11 +617,20 @@ def build_layout(tm, bg_paths):
     side_x, w99, side_gap = 106, 100, 12
     vh = digit_h(K.VALUE_PX)
     slots = []
-    centres = [
-        (119, 75, 116), (361, 75, 116),
-        (119, 346, 392), (240, 346, 392),
-        (361, 346, 392), (240, 75, 116),
-    ]
+    # Canonical watchface positions come from WatchWit Studio's editable JSON.
+    # The ordered slots here retain Zepp's persistent complication indexing.
+    blueprint = json.loads((K.REPO / "studio" / "target-watchface.json").read_text())
+    if blueprint.get("schemaVersion") != 1 or blueprint.get("canvas", {}).get("width") != 480:
+        raise ValueError("Incompatible WatchWit Studio blueprint")
+    elements = {item["id"]: item for item in blueprint["elements"]}
+    slot_names = ("steps", "calories", "battery", "weather", "distance", "heart")
+    centres = []
+    for name in slot_names:
+        part = elements[name]
+        cx = part["x"] + part["w"] / 2
+        icon_cy = part["y"] + 20
+        value_cy = part["y"] + 61
+        centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
     L["rules"] = []
@@ -841,7 +850,8 @@ def generate():
             continue
         shutil.rmtree(child) if child.is_dir() else child.unlink()
     F.write_watch_font(OUT / "fonts" / F.TEXT_FONT_SUBSET_NAME)
-    K.TIME_PX = 148
+    blueprint = json.loads((K.REPO / "studio" / "target-watchface.json").read_text())
+    K.TIME_PX = next(e["fontSize"] for e in blueprint["elements"] if e["id"] == "clock")
     bg = make_backgrounds()
     tm = make_time_digits()
     make_icons()
