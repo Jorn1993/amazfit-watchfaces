@@ -203,6 +203,21 @@ jobs:
           print(payload)
           PY
 
+      - name: Validate and publish WatchWit Studio
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          page=Path('studio/index.html').read_text()
+          scripts=re.findall(r'<script>(.*?)</script>',page,flags=re.S)
+          assert len(scripts)==1, 'expected one inline Studio script'
+          assert all(x in page for x in ('Export JSON','Import JSON','Validation','pointermove','localStorage'))
+          Path('/tmp/watchwit-studio-check.js').write_text(scripts[0])
+          Path('site/studio').mkdir(parents=True,exist_ok=True)
+          Path('site/studio/index.html').write_text(page)
+          PY
+          node --check /tmp/watchwit-studio-check.js
+
       - name: Upload installable files to the Actions run
         uses: actions/upload-artifact@v4
         with:
