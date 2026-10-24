@@ -143,9 +143,9 @@ jobs:
           from pathlib import Path
           p=Path('preview-source/faces/sextant/app.json')
           data=json.loads(p.read_text())
-          data['app']['appId']=21319242
+          data['app']['appId']=21319243
           data['app']['appName']='WatchWit Reference v0.2.1'
-          data['app']['version']={'code':4,'name':'0.2.1'}
+          data['app']['version']={'code':1,'name':'0.2.1'}
           data['app']['description']='WatchWit Reference — independently installable six-gauge watchface.'
           for lang in data['i18n'].values():
               lang['appName']='WatchWit Reference v0.2.1'
@@ -167,7 +167,7 @@ jobs:
           p=Path('site/preview/watchwit-preview.zpk')
           with zipfile.ZipFile(p) as z, zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
               m=json.loads(d.read('app.json'))['app']
-              assert m['appId']==21319242,m
+              assert m['appId']==21319243,m
               assert m['appName']=='WatchWit Reference v0.2.1',m
               assert m['version']['name']=='0.2.1',m
           print('Validated separate WatchWit preview package:',p.stat().st_size,'bytes')
