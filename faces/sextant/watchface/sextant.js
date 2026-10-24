@@ -377,10 +377,11 @@ export function sextantFace(L) {
         const bound = BOUND_METRICS[id];
         // Orbit card caption: aligned to its capsule, not the old perimeter.
         const caption = this.text({
-          x: box.cx - 54, y: (i === 0 || i === 1 || i === 5) ? 132 : 404,
-          w: 108, h: 18, size: 15,
+          x: box.cx - 53, y: (i === 0 || i === 1 || i === 5) ? 139 : 411,
+          w: 106, h: 17, size: 15,
         }, { color: C.muted });
-        caption.setProperty(hmUI.prop.TEXT, L.metrics[id].title.toUpperCase().slice(0, 14));
+        const shortLabels = { heart: 'BPM', calories: 'CAL', battery: 'BATTERY', distance: 'KM' };
+        caption.setProperty(hmUI.prop.TEXT, shortLabels[id] || L.metrics[id].title.toUpperCase().slice(0, 11));
         // turned corners (Twisted Sextant): the firmware turns the icon and the glyph images
         const rot = box.rot;
         const turnIcon = rot && rot.icon && !(bound && bound.levelIcon);
@@ -441,11 +442,11 @@ export function sextantFace(L) {
       dyn.dow = this.text(L.date.dow, { color: C.accent });
       dyn.day = this.text(L.date.day, { color: C.text });
       dyn.month = this.text(L.date.month, { color: C.muted });
-      dyn.batteryIcon = this.w(hmUI.widget.IMG, {
-        x: px_(L.battery.icon.x), y: px_(L.battery.icon.y), src: `battery/${theme}/high.png`, show_level: NORMAL,
-      });
-      dyn.batteryFill = this.batteryFill(L.battery.fill, C.battery.high, NORMAL);
-      dyn.battery = this.text(L.battery.text, { color: C.text });
+      // Center stays dedicated to time and date. Battery lives in its
+      // editable complication pod, not in a redundant fixed clock overlay.
+      dyn.batteryIcon = null;
+      dyn.batteryFill = null;
+      dyn.battery = null;
 
       // time
       this.timeWidgets(`time/${theme}`, L.time, NORMAL);
@@ -492,13 +493,16 @@ export function sextantFace(L) {
 
     timeWidgets(dir, T, level) {
       const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => `${dir}/${d}.png`);
+      const minuteDigits = dir === 'time/color'
+        ? [0,1,2,3,4,5,6,7,8,9].map((d) => `time_minute/color/${d}.png`)
+        : digits;
       this.w(hmUI.widget.IMG_TIME, {
         hour_zero: 1, hour_startX: px_(T.hour_x), hour_startY: px_(T.y), hour_array: digits,
         hour_space: 0, hour_align: hmUI.align.LEFT, show_level: level,
       });
       this.w(hmUI.widget.IMG, { x: px_(T.colon_x), y: px_(T.y), src: `${dir}/colon.png`, show_level: level });
       this.w(hmUI.widget.IMG_TIME, {
-        minute_zero: 1, minute_startX: px_(T.minute_x), minute_startY: px_(T.y), minute_array: digits,
+        minute_zero: 1, minute_startX: px_(T.minute_x), minute_startY: px_(T.y), minute_array: minuteDigits,
         minute_space: 0, minute_align: hmUI.align.LEFT, show_level: level,
       });
     },
