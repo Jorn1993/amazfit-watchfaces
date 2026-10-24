@@ -504,20 +504,38 @@ export function sextantFace(L) {
       const dow = WEEKDAYS[((time.week || 1) - 1 + 7) % 7];
       const month = MONTHS[((time.month || 1) - 1 + 12) % 12];
       const day = String(time.day || 1);
+      // Widget updates can wake the renderer: only write labels when a value changes.
       [[dyn.dow, dyn.aodDow, dow], [dyn.day, dyn.aodDay, day], [dyn.month, dyn.aodMonth, month]].forEach(([a, b, v]) => {
-        if (a) a.setProperty(hmUI.prop.TEXT, v);
-        b.setProperty(hmUI.prop.TEXT, v);
+        if (a && a.shown !== v) {
+          a.setProperty(hmUI.prop.TEXT, v);
+          a.shown = v;
+        }
+        if (b && b.shown !== v) {
+          b.setProperty(hmUI.prop.TEXT, v);
+          b.shown = v;
+        }
       });
 
-      // battery
+      // Battery measurements change infrequently. Keep the existing event-driven
+      // updates, but avoid rewriting the same icon, text and fill on every tick.
       const level = this.batterySensor ? this.batterySensor.getCurrent() || 0 : 0;
       const band = level > 40 ? 'high' : level > 20 ? 'mid' : 'low';
+      const batteryText = `${level}%`;
       if (dyn.batteryIcon) {
-        dyn.batteryIcon.setProperty(hmUI.prop.SRC, `battery/${theme}/${band}.png`);
-        dyn.battery.setProperty(hmUI.prop.TEXT, `${level}%`);
+        if (dyn.batteryIcon.shown !== band) {
+          dyn.batteryIcon.setProperty(hmUI.prop.SRC, `battery/${theme}/${band}.png`);
+          dyn.batteryIcon.shown = band;
+        }
+        if (dyn.battery.shown !== batteryText) {
+          dyn.battery.setProperty(hmUI.prop.TEXT, batteryText);
+          dyn.battery.shown = batteryText;
+        }
         this.setBatteryFill(dyn.batteryFill, L.battery.fill, level, L.colors[theme].battery[band]);
       }
-      dyn.aodBattery.setProperty(hmUI.prop.TEXT, `${level}%`);
+      if (dyn.aodBattery.shown !== batteryText) {
+        dyn.aodBattery.setProperty(hmUI.prop.TEXT, batteryText);
+        dyn.aodBattery.shown = batteryText;
+      }
       this.setBatteryFill(dyn.aodBatteryFill, L.aod.battery.fill, level, L.colors[theme].aod_text);
 
       // complications (the always-on screen shows none)
