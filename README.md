@@ -21,6 +21,10 @@ Available themes:
 | Orange | Orange throughout |
 | Pink | Pink throughout |
 
+## Size optimization (v0.1.1)
+
+The package reuses byte-for-byte identical generated bitmaps without altering the watchface design: Mix shares Color complication icons and progress-marker graphics; weather conditions with the same icon or description share one image; single-hue palettes reuse their uniform marker graphics. All eight editable color themes, automatic night mode, and Always-On Display remain available. The v0.1.1 version increment lets Zepp recognize this as an update to v0.1.0.
+
 ## Install through Zepp
 
 Open the dedicated installation page:
