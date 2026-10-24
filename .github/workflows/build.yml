@@ -144,11 +144,11 @@ jobs:
           p=Path('preview-source/faces/sextant/app.json')
           data=json.loads(p.read_text())
           data['app']['appId']=21319243
-          data['app']['appName']='WatchWit Reference v0.2.5'
-          data['app']['version']={'code':5,'name':'0.2.5'}
+          data['app']['appName']='WatchWit Reference v0.2.6'
+          data['app']['version']={'code':6,'name':'0.2.6'}
           data['app']['description']='WatchWit Reference — independently installable six-gauge watchface.'
           for lang in data['i18n'].values():
-              lang['appName']='WatchWit Reference v0.2.5'
+              lang['appName']='WatchWit Reference v0.2.6'
           p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
@@ -160,7 +160,7 @@ jobs:
           mkdir -p site/preview
           cp preview-source/site/preview/watchwit-reference-preview.png site/preview/watchwit-reference-preview.png
           python tools/extract_zpk.py preview-source/faces/sextant/dist site/preview/watchwit-preview.zpk
-          cp site/preview/watchwit-preview.zpk site/preview/watchwit-reference-v0.2.5.zpk
+          cp site/preview/watchwit-preview.zpk site/preview/watchwit-reference-v0.2.6.zpk
           python - <<'PY'
           import io,json,zipfile
           from pathlib import Path
@@ -168,8 +168,8 @@ jobs:
           with zipfile.ZipFile(p) as z, zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
               m=json.loads(d.read('app.json'))['app']
               assert m['appId']==21319243,m
-              assert m['appName']=='WatchWit Reference v0.2.5',m
-              assert m['version']['name']=='0.2.5',m
+              assert m['appName']=='WatchWit Reference v0.2.6',m
+              assert m['version']['name']=='0.2.6',m
           print('Validated separate WatchWit preview package:',p.stat().st_size,'bytes')
           PY
 
@@ -180,7 +180,7 @@ jobs:
           from pathlib import Path
           from PIL import Image,ImageDraw,ImageFont
           folder=Path('site/preview')
-          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-reference-v0.2.5.zpk'
+          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-reference-v0.2.6.zpk'
           qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
           qr.add_data(payload);qr.make(fit=True)
           src=qr.make_image(fill_color='#111827',back_color='white').convert('RGB')
@@ -190,17 +190,17 @@ jobs:
           dr=ImageDraw.Draw(card)
           fonts=Path('/usr/share/fonts/truetype/dejavu')
           dr.text((w//2,35),'WatchWit Reference',font=ImageFont.truetype(str(fonts/'DejaVuSans-Bold.ttf'),38),anchor='mt',fill='#111827')
-          dr.text((w//2,95),'Version 0.2.5',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
-          card.save(folder/'WatchWit-Reference-v0.2.5-QR.png')
+          dr.text((w//2,95),'Version 0.2.6',font=ImageFont.truetype(str(fonts/'DejaVuSans.ttf'),26),anchor='mt',fill='#475569')
+          card.save(folder/'WatchWit-Reference-v0.2.6-QR.png')
           (folder/'index.html').write_text("""<!doctype html><html lang="en"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Reference v0.2.5</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Reference v0.2.6</title>
           <style>body{font:16px system-ui;background:#101724;color:#ecf2fa;line-height:1.6;max-width:620px;padding:24px;margin:35px auto}
           img{width:min(100%,350px);border-radius:12px}a{color:#99c5ff}
           .button{display:inline-block;padding:12px 18px;margin:8px 8px 8px 0;border-radius:12px;background:#3076dd;color:white;text-decoration:none}</style></head>
-          <body><h1>WatchWit Reference v0.2.5</h1><p><img src="watchwit-reference-preview.png" alt="Preview composed from generated watchface assets"></p><p>An independent, six-gauge reference-inspired watchface designed for Amazfit Balance 2. Installs alongside Classic without replacing it.</p>
-          <p><img src="WatchWit-Reference-v0.2.5-QR.png" alt="WatchWit Reference installation QR"></p>
-          <p><a class="button" href="WatchWit-Reference-v0.2.5-QR.png" download="WatchWit-Reference-v0.2.5-QR.png">Save QR</a>
-          <a class="button" href="watchwit-reference-v0.2.5.zpk">Download Reference ZPK</a></p>
+          <body><h1>WatchWit Reference v0.2.6</h1><p><img src="watchwit-reference-preview.png" alt="Preview composed from generated watchface assets"></p><p>An independent, six-gauge reference-inspired watchface designed for Amazfit Balance 2. Installs alongside Classic without replacing it.</p>
+          <p><img src="WatchWit-Reference-v0.2.6-QR.png" alt="WatchWit Reference installation QR"></p>
+          <p><a class="button" href="WatchWit-Reference-v0.2.6-QR.png" download="WatchWit-Reference-v0.2.6-QR.png">Save QR</a>
+          <a class="button" href="watchwit-reference-v0.2.6.zpk">Download Reference ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
           <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
