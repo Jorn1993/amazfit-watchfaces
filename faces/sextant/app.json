@@ -2,11 +2,11 @@
   "configVersion": "v3",
   "app": {
     "appId": 21319242,
-    "appName": "WatchWit Orbit v0.1.0",
+    "appName": "WatchWit Orbit v0.1.1",
     "appType": "watchface",
     "version": {
-      "code": 1,
-      "name": "0.1.0"
+      "code": 2,
+      "name": "0.1.1"
     },
     "icon": "icon.png",
     "vender": "WatchWit",
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "WatchWit Orbit v0.1.0"
+      "appName": "WatchWit Orbit v0.1.1"
     },
     "zh-CN": {
-      "appName": "WatchWit Orbit v0.1.0"
+      "appName": "WatchWit Orbit v0.1.1"
     },
     "zh-TW": {
-      "appName": "WatchWit Orbit v0.1.0"
+      "appName": "WatchWit Orbit v0.1.1"
     }
   },
   "defaultLanguage": "en-US",
