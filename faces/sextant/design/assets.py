@@ -257,10 +257,8 @@ def make_backgrounds():
                 f'<circle cx="{cx}" cy="{cy+2}" r="49" fill="#02070d" opacity=".8"/>',
                 f'<circle cx="{cx}" cy="{cy}" r="47" fill="url(#pod)" stroke="#375874" stroke-width="2.6"/>',
                 f'<circle cx="{cx}" cy="{cy}" r="43" fill="#020b16" stroke="#10263b" stroke-width="1.4"/>'))
-            # Decorated upper semicircular gauge with thicker discrete tiles.
-            for j in range(14):
-                angle=197+j*10
-                seg(cx,cy,45,angle,angle+7.2,5.8,colour if j<9 else '#34455c')
+            # Actual progress is drawn from Zepp sensors by live ARC_PROGRESS
+            # widgets. Do not bake misleading fixed percentages into artwork.
             seg(cx,cy,49,8,161,1.1,'#2e668d',.70)
         svg.append('<path d="M239 176v19" stroke="#7197b3" opacity=".8" stroke-width="1"/>')
         # Accent underlines between pods, avoiding dynamic text.
@@ -635,7 +633,20 @@ def build_layout(tm, bg_paths):
     # Orbit deliberately has no Classic outer gauge widgets: the accent arcs
     # are static artwork, keeping the face clean and battery-conscious.
     L["markers"] = dict(fixed=[])
-    L["gauge"] = dict(segments=[dict(ticks=[]) for _ in range(6)])
+    blueprint = json.loads((K.REPO / "studio" / "target-watchface.json").read_text())
+    specs = {e["id"]: e for e in blueprint["elements"]}
+    slot_names = ("steps", "calories", "battery", "weather", "distance", "heart")
+    segments = []
+    for name in slot_names:
+        e = specs[name]
+        cx, cy = round(e["x"] + e["w"]/2), round(e["y"] + e["h"]/2)
+        ticks = []
+        for k in range(12):
+            angle = 210 + 10*k
+            ticks.append(dict(s=angle, e=angle+7, len=5.8,
+                              r_center=45, r_outer=48, cx=cx, cy=cy))
+        segments.append(dict(ticks=ticks))
+    L["gauge"] = dict(segments=segments)
 
     # ---------------------------------------------------------------- complications
     side_x, w99, side_gap = 106, 100, 12
