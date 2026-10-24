@@ -122,19 +122,20 @@ jobs:
           <p><a class="button" href="nautic-palette/{filename}" download="{filename}">Save QR to gallery</a>
           <a class="button secondary" href="nautic-palette/nautic-palette.zpk">Download ZPK</a></p>
           <p><small>On some phones the image opens instead of saving. Long-press it and select Save image or Download image.</small></p>
+          <p><a class="button secondary" href="preview/">Explore WatchWit Orbit — separate watchface</a></p>
           </main></body></html>"""
           Path('site/index.html').write_text(page)
           print('QR download:',filename,'install URI:',payload)
           PY
 
-      - name: Checkout visual redesign branch separately
+      - name: Checkout Orbit branch separately
         uses: actions/checkout@v4
         with:
           ref: watchwit-orbit
           path: preview-source
           persist-credentials: false
 
-      - name: Build installable WatchWit visual preview
+      - name: Build installable WatchWit Orbit
         run: |
           python - <<'PY'
           import json
@@ -144,7 +145,7 @@ jobs:
           data['app']['appId']=21319242
           data['app']['appName']='WatchWit Orbit v0.1.1'
           data['app']['version']={'code':2,'name':'0.1.1'}
-          data['app']['description']='WatchWit Orbit — independent watchface, currently an early design build.'
+          data['app']['description']='WatchWit Orbit — independently installable minimalist orbital watchface.'
           for lang in data['i18n'].values():
               lang['appName']='WatchWit Orbit v0.1.1'
           p.write_text(json.dumps(data,indent=2)+chr(10))
@@ -193,10 +194,10 @@ jobs:
           <style>body{font:16px system-ui;background:#101724;color:#ecf2fa;line-height:1.6;max-width:620px;padding:24px;margin:35px auto}
           img{width:min(100%,350px);border-radius:12px}a{color:#99c5ff}
           .button{display:inline-block;padding:12px 18px;margin:8px 8px 8px 0;border-radius:12px;background:#3076dd;color:white;text-decoration:none}</style></head>
-          <body><h1>WatchWit Orbit v0.1.1</h1><p>Early Orbit development build. Different watchface and app ID from stable WatchWit; concept layout still in progress.</p>
+          <body><h1>WatchWit Orbit v0.1.1</h1><p>An independent, minimal orbital watchface designed for Amazfit Balance 2. Installs alongside Classic without replacing it.</p>
           <p><img src="WatchWit-Orbit-v0.1.1-QR.png" alt="WatchWit Orbit installation QR"></p>
           <p><a class="button" href="WatchWit-Orbit-v0.1.1-QR.png" download="WatchWit-Orbit-v0.1.1-QR.png">Save QR</a>
-          <a class="button" href="watchwit-orbit-v0.1.1.zpk">Download preview ZPK</a></p>
+          <a class="button" href="watchwit-orbit-v0.1.1.zpk">Download Orbit ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
           <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
