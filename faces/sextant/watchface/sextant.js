@@ -363,16 +363,16 @@ export function sextantFace(L) {
           Object.keys(iconAt).forEach((k) => { o[k] = k === 'angle' ? iconAt[k] : px_(iconAt[k]); });
           return o;
         };
-        slot.iconDir = `icons/${theme}`;
+        slot.iconDir = `icons/${theme === 'mix' ? 'color' : theme}`;
         if (bound && bound.levelIcon) {
           // weather: the firmware picks the current condition's icon (no API level 1 property)
           slot.icon = this.w(hmUI.widget.IMG_LEVEL, {
             x: px_(iconAt.x), y: px_(iconAt.y),
-            image_array: L.weather_desc.map((_, k) => `icons/${theme}/${bound.levelIcon}_${k}.png`),
+            image_array: L.weather_desc.map((_, k) => `${slot.iconDir}/${bound.levelIcon}_${L.weather_icon_index[k]}.png`),
             image_length: L.weather_desc.length, type: hmUI.data_type.WEATHER_CURRENT, show_level: NORMAL,
           });
         } else {
-          slot.icon = this.w(hmUI.widget.IMG, iconProps(`icons/${theme}/${id}.png`));
+          slot.icon = this.w(hmUI.widget.IMG, iconProps(`${slot.iconDir}/${id}.png`));
         }
         if (bound && hmUI.data_type[bound.type] !== undefined) {
           this.w(hmUI.widget.TEXT_FONT, {
@@ -431,7 +431,9 @@ export function sextantFace(L) {
       // Only shown when a slot shows weather: without the temperature it's out of context.
       if (hasDesc) this.w(hmUI.widget.IMG_LEVEL, {
         x: px_(L.desc_img.x), y: px_(L.desc_img.y),
-        image_array: L.weather_desc.map((_, i) => `desc/${theme}/${i}.png`), image_length: L.weather_desc.length,
+        image_array: L.weather_desc.map((text, i) => text
+          ? `desc/${theme}/${L.weather_text_index[i]}.png`
+          : 'desc/color/25.png'), image_length: L.weather_desc.length,
         type: hmUI.data_type.WEATHER_CURRENT, show_level: NORMAL,
       });
 
@@ -626,7 +628,16 @@ export function sextantFace(L) {
         const lit = n > m.after;
         if (lit !== m.lit) {
           m.lit = lit;
-          m.widget.setProperty(hmUI.prop.SRC, `marker/${this.theme}/${lit ? `m${m.k}_lit_${slot.id}` : m.base}.png`);
+          // Preserve the same pixels while sharing identical marker art:
+          // Mix uses Color's lit markers; single-hue themes use brass.
+          // Mono/night use one uniform lit image for every metric.
+          let path = `marker/${this.theme}/${m.base}.png`;
+          if (lit && (this.theme === 'color' || this.theme === 'mix')) {
+            path = `marker/color/m${m.k}_lit_${slot.id}.png`;
+          } else if (lit && (this.theme === 'mono' || this.theme === 'night')) {
+            path = `marker/${this.theme}/m${m.k}_lit_steps.png`;
+          }
+          m.widget.setProperty(hmUI.prop.SRC, path);
         }
       }
     },
