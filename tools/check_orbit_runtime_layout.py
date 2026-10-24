@@ -21,7 +21,8 @@ for idx,name in enumerate(order):
   errors.append(name+' icon collides with value')
  if v['y']+v['h']>(143 if idx in (0,1,5) else 405):
   errors.append(name+' value overlaps caption')
- if abs((icon['y']+icon['size']/2)-(p['y']+20))>2:
+ expected_icon_cy = p['y'] + (8 if name in ('battery','weather','distance') else 20)
+ if abs((icon['y']+icon['size']/2)-expected_icon_cy)>2:
   errors.append(name+' icon not aligned to reference')
 clock=layout['time']
 if clock['hour_x']<55 or clock['minute_x']>410:
