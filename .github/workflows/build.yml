@@ -154,6 +154,7 @@ jobs:
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
           mkdir -p site/preview
           python tools/extract_zpk.py preview-source/faces/sextant/dist site/preview/watchwit-preview.zpk
+          cp site/preview/watchwit-preview.zpk site/preview/watchwit-dashboard-v0.4.1.zpk
           python - <<'PY'
           import io,json,zipfile
           from pathlib import Path
@@ -173,7 +174,7 @@ jobs:
           from pathlib import Path
           from PIL import Image,ImageDraw,ImageFont
           folder=Path('site/preview')
-          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-preview.zpk'
+          payload='zpkd1://jorn1993.github.io/amazfit-watchfaces/preview/watchwit-dashboard-v0.4.1.zpk'
           qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=12,border=4)
           qr.add_data(payload);qr.make(fit=True)
           src=qr.make_image(fill_color='#111827',back_color='white').convert('RGB')
@@ -193,7 +194,7 @@ jobs:
           <body><h1>WatchWit Dashboard v0.4.1</h1><p>Early dashboard development build. Different watchface and app ID from stable WatchWit; concept layout still in progress.</p>
           <p><img src="WatchWit-Dashboard-v0.4.1-QR.png" alt="WatchWit Dashboard installation QR"></p>
           <p><a class="button" href="WatchWit-Dashboard-v0.4.1-QR.png" download="WatchWit-Dashboard-v0.4.1-QR.png">Save QR</a>
-          <a class="button" href="watchwit-preview.zpk">Download preview ZPK</a></p>
+          <a class="button" href="watchwit-dashboard-v0.4.1.zpk">Download preview ZPK</a></p>
           <p>In Zepp Developer Mode, choose Scan and scan the QR from another screen.</p>
           <p><a href="../">Open WatchWit Classic</a></p></body></html>""")
           print(payload)
