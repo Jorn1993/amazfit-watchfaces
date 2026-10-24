@@ -50,7 +50,7 @@ The repo was created **private**. Zepp's QR installer needs an externally reacha
 - Open **Actions → Build Nautic Palette and installation QR → Run workflow**. The successful workflow uploads the `.zpk` and install QR as build artifacts and deploys the installer page.
 - Check the deployment URL above (the `.zpk` must be publicly downloadable over HTTPS). Only then scan the QR code.
 
-**Current build status:** Source changes and workflow are committed; the first hosted runner attempt on the private repository was stopped by GitHub *before running any steps*. The previous build in the separate temporary environment successfully compiled and passed 27 automated scenarios, but that does not validate installation on an actual Balance 2.
+**Current build status:** The watchface source and automated build are maintained in this repository. The first private-repository build could not acquire a hosted runner; the repository has since been made public so GitHub can attempt a fresh build. Successful automated tests and compilation do not yet constitute an on-watch installation test.
 
 ## Repository structure
 
