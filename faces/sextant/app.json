@@ -2,18 +2,18 @@
   "configVersion": "v3",
   "app": {
     "appId": 21319240,
-    "appName": "Nautic Palette",
+    "appName": "WatchWit",
     "appType": "watchface",
     "version": {
-      "code": 2,
-      "name": "0.1.1"
+      "code": 3,
+      "name": "0.1.2"
     },
     "icon": "icon.png",
-    "vender": "Nautic Palette",
+    "vender": "WatchWit",
     "cover": [
       "cover.png"
     ],
-    "description": "Nautic Palette: customizable 480x480 watchface with Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes."
+    "description": "WatchWit: customizable 480x480 watchface with Color, Mono, Mix, Blue, Green, Purple, Orange and Pink themes."
   },
   "runtime": {
     "apiVersion": {
@@ -59,13 +59,13 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "Nautic Palette"
+      "appName": "WatchWit"
     },
     "zh-CN": {
-      "appName": "Nautic Palette"
+      "appName": "WatchWit"
     },
     "zh-TW": {
-      "appName": "Nautic Palette"
+      "appName": "WatchWit"
     }
   },
   "defaultLanguage": "en-US",
