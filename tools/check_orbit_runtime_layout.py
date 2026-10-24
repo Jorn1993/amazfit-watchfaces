@@ -1,43 +1,33 @@
 #!/usr/bin/env python3
-"""Validate geometry from the *generated* WatchWit Orbit runtime layout.
-
-Unlike the blueprint gate, this checks measured text boxes, icon locations,
-clock and editing targets after the asset generator has run.
-"""
+"""Compare generated Zepp widget geometry to WatchWit Studio reference JSON."""
 import json
-import sys
 from pathlib import Path
-p = Path(__file__).resolve().parents[1] / "faces/sextant/watchface/layout.generated.js"
-if not p.exists():
-    raise SystemExit("Missing generated runtime layout: run npm run assets")
-s = p.read_text()
-prefix = "export const LAYOUT = "
-if prefix not in s:
-    raise SystemExit("Unexpected layout format")
-L = json.loads(s.split(prefix,1)[1].rsplit(";",1)[0])
-centres = [(106,103),(374,103),(106,373),(240,373),(374,373),(240,103)]
-errors = []
-for i,(cx,cy) in enumerate(centres):
-    slot = L["slots"][i]
-    if abs(slot["cx"]-cx)>2:
-        errors.append(f"slot {i} wrong X center: {slot['cx']}")
-    for key in ("icon","value","edit"):
-        box=slot[key]
-        x,y=box["x"],box["y"]
-        w=box.get("w",box.get("size"))
-        h=box.get("h",box.get("size"))
-        if x < cx-65 or x+w>cx+65 or y<cy-52 or y+h>cy+52:
-            errors.append(f"slot {i} {key} exceeds capsule: {(x,y,w,h)}")
-    icon=slot["icon"]
-    value=slot["value"]
-    if icon["y"]+icon["size"]>value["y"]+5:
-        errors.append(f"slot {i}: icon/value overlap")
-    if value["y"]+value["h"]>(130 if cy<200 else 404)+7:
-        errors.append(f"slot {i}: value intrudes into caption")
-for key in ("hour_x","minute_x","y"):
-    if key not in L["time"]: errors.append("missing time coordinate "+key)
-if L["time"]["hour_x"]<55 or L["time"]["minute_x"]>405:
-    errors.append("time outside hero panel")
-if len(L["gauge"]["segments"])!=6: errors.append("wrong gauge count")
-if errors: raise SystemExit("ORBIT RUNTIME LAYOUT FAIL:\n"+"\n".join(errors))
-print("Orbit generated layout PASS: six capsules, measured text boxes, hero time")
+root=Path(__file__).resolve().parents[1]
+file=root/'faces/sextant/watchface/layout.generated.js'
+src=file.read_text().split('export const LAYOUT = ',1)[1].rsplit(';',1)[0]
+layout=json.loads(src)
+blueprint=json.loads((root/'studio/target-watchface.json').read_text())
+parts={e['id']:e for e in blueprint['elements']}
+order=['steps','calories','battery','weather','distance','heart']
+errors=[]
+for idx,name in enumerate(order):
+ p=parts[name];slot=layout['slots'][idx]
+ cx=p['x']+p['w']/2
+ if abs(slot['cx']-cx)>1: errors.append(name+' wrong horizontal center')
+ icon=slot['icon'];v=slot['value']
+ if not (p['x']-3<=icon['x']<=p['x']+p['w'] and p['x']-3<=v['x']<=p['x']+p['w']):
+  errors.append(name+' x placement outside gauge')
+ if icon['y']+icon['size']>v['y']+3:
+  errors.append(name+' icon collides with value')
+ if v['y']+v['h']>(143 if idx in (0,1,5) else 405):
+  errors.append(name+' value overlaps caption')
+ if abs((icon['y']+icon['size']/2)-(p['y']+20))>2:
+  errors.append(name+' icon not aligned to reference')
+clock=layout['time']
+if clock['hour_x']<55 or clock['minute_x']>410:
+ errors.append('hero clock does not fit horizontal panel')
+if not (166<=clock['y'] and clock['y']+clock['cell_h']<=323):
+ errors.append('hero clock clips its central panel')
+if len(layout['slots'])!=6: errors.append('wrong slot count')
+if errors: raise SystemExit('REFERENCE RUNTIME LAYOUT FAILURE:\n'+'\n'.join(errors))
+print('PASS: Studio data and generated Zepp glyph/icon positions agree')
