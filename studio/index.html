@@ -63,6 +63,26 @@ function current(){return model.elements.find(e=>e.id===selected)}
 function esc(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function viewValue(e){return scenario==='empty'&&e.type==='card'?'--':scenario==='long'&&e.type==='card'?'99,999':e.value}
 function rectangle(e){return {l:e.x,r:e.x+e.w,t:e.y,b:e.y+e.h}}
+function gaugeParts(e){
+ const cx=e.x+e.w/2, cy=e.y+e.h/2;
+ const icon={x:cx-12,y:e.y+11,w:24,h:24};
+ const val={x:cx-e.w*.43,y:e.y+38,w:e.w*.86,h:Math.min(32,e.fontSize+6)};
+ const label={x:cx-e.w*.38,y:e.y+74,w:e.w*.76,h:15};
+ return {icon,val,label};
+}
+function gaugeFits(e){
+ const parts=gaugeParts(e), cx=e.x+e.w/2,cy=e.y+e.h/2,r=Math.min(e.w,e.h)/2-7;
+ const ctx=document.createElement('canvas').getContext('2d');
+ for(const [name,p] of Object.entries(parts)){
+  for(const [x,y] of [[p.x,p.y],[p.x+p.w,p.y],[p.x,p.y+p.h],[p.x+p.w,p.y+p.h]])
+   if(Math.hypot(x-cx,y-cy)>r+.01)return name+' extends outside safe inner circle';
+ }
+ ctx.font='750 '+e.fontSize+'px system-ui';
+ if(ctx.measureText(viewValue(e)).width>parts.val.w)return 'value text is too wide for inner circle';
+ ctx.font='12px system-ui';
+ if(ctx.measureText(e.label||'').width>parts.label.w)return 'label text is too wide for inner circle';
+ return null;
+}
 function validate(){
  const errors=[],invalid=new Set();
  model.elements.forEach(e=>{
@@ -81,6 +101,7 @@ function validate(){
  const approx=viewValue(e).length*e.fontSize*(e.type==='clock'?.47:.56);
  if(approx>e.w-6){errors.push(e.id+': value may exceed box width');invalid.add(e.id)}
  if((e.type==='card'||e.type==='gauge')&&e.h<75){errors.push(e.id+': card may clip icon/value/label');invalid.add(e.id)}
+ if(e.type==='gauge'){const problem=gaugeFits(e);if(problem){errors.push(e.id+': '+problem);invalid.add(e.id)}}
  });
  for(let i=0;i<model.elements.length;i++)for(let j=i+1;j<model.elements.length;j++){
  const a=model.elements[i],b=model.elements[j],A=rectangle(a),B=rectangle(b);
@@ -105,7 +126,13 @@ function render(){
  model.elements.forEach(e=>{
  const el=document.createElement('div');el.className='element '+e.type+(e.type==='card'?' card':'')+(selected===e.id?' selected':'')+(invalid.has(e.id)?' invalid':'');
  el.style.cssText='left:'+e.x+'px;top:'+e.y+'px;width:'+e.w+'px;height:'+e.h+'px;font-size:'+e.fontSize+'px;color:'+e.color;
- if(e.type==='card'||e.type==='gauge')el.innerHTML='<span class="symbol" style="font-size:20px;color:'+esc(e.color)+'">'+esc(e.symbol||'•')+'</span><span class="value">'+esc(viewValue(e))+'</span><span class="subtitle">'+esc(e.label)+'</span>';
+ if(e.type==='gauge'){
+  const parts=gaugeParts(e);
+  const part=(name,txt,style)=>'<span style="position:absolute;left:'+(parts[name].x-e.x)+'px;top:'+(parts[name].y-e.y)+'px;width:'+parts[name].w+'px;height:'+parts[name].h+'px;display:grid;place-items:center;white-space:nowrap;'+style+'">'+esc(txt)+'</span>';
+  el.innerHTML=part('icon',e.symbol||'•','font-size:20px;color:'+esc(e.color))+
+   part('val',viewValue(e),'font-size:'+e.fontSize+'px;font-weight:750;')+
+   part('label',e.label||'','font-size:12px;color:#adc1d5;');
+ }else if(e.type==='card')el.innerHTML='<span class="symbol" style="font-size:20px;color:'+esc(e.color)+'">'+esc(e.symbol||'•')+'</span><span class="value">'+esc(viewValue(e))+'</span><span class="subtitle">'+esc(e.label)+'</span>';
  else el.textContent=viewValue(e);
  el.dataset.id=e.id;el.addEventListener('pointerdown',startDrag);
  $('watch').append(el);
@@ -120,13 +147,13 @@ function renderProperties(){
  const e=current();if(!e){$('properties').innerHTML='<p class="muted">Select an element.</p>';return}
  const fields=[['x','X','number'],['y','Y','number'],['w','Width','number'],['h','Height','number'],['fontSize','Font size','number'],['color','Color','color'],['value','Sample value','text'],['label','Label','text'],['symbol','Icon / symbol','text']];
  $('properties').innerHTML='<div class="stack"><label>Element <input value="'+esc(e.id)+'" disabled></label><div class="fields">'+fields.map(([k,title,type])=>'<label>'+title+'<input data-field="'+k+'" type="'+type+'" value="'+esc(e[k]??'')+'"></label>').join('')+'</div><button id="delete" style="color:#ffc0c0">Delete element</button></div>';
- $('properties').querySelectorAll('[data-field]').forEach(input=>{input.addEventListener('change',()=>{snapshot();const key=input.dataset.field;e[key]=input.type==='number'?Number(input.value):input.value;render()})});
+ $('properties').querySelectorAll('[data-field]').forEach(input=>{input.addEventListener('change',()=>{snapshot();const key=input.dataset.field;e[key]=input.type==='number'?Number(input.value):input.value;if(validate().errors.length){model=JSON.parse(history.pop());alert('Change rejected: component would overlap or clip.');}render()})});
  $('delete').onclick=()=>{snapshot();model.elements=model.elements.filter(x=>x.id!==selected);selected=null;render()};
 }
 function startDrag(ev){if(ev.button!==0)return;const e=model.elements.find(x=>x.id===ev.currentTarget.dataset.id);selected=e.id;const origin={x:ev.clientX,y:ev.clientY,ex:e.x,ey:e.y};snapshot();drag={id:e.id,...origin};document.addEventListener('pointermove',moveDrag);document.addEventListener('pointerup',stopDrag,{once:true});renderProperties()}
 function moveDrag(ev){if(!drag)return;const e=model.elements.find(x=>x.id===drag.id);if(!e)return;const rect=$('watch').getBoundingClientRect(),scale=SIZE/rect.width;e.x=Math.round(drag.ex+(ev.clientX-drag.x)*scale);e.y=Math.round(drag.ey+(ev.clientY-drag.y)*scale);const node=Array.from($('watch').children).find(n=>n.dataset?.id===e.id);if(node){node.style.left=e.x+'px';node.style.top=e.y+'px'}}
-function stopDrag(){drag=null;document.removeEventListener('pointermove',moveDrag);render()}
-document.addEventListener('keydown',ev=>{const e=current();if(!e||/input|select|textarea/i.test(document.activeElement.tagName))return;const d=ev.shiftKey?10:1,move={ArrowUp:[0,-d],ArrowDown:[0,d],ArrowLeft:[-d,0],ArrowRight:[d,0]}[ev.key];if(move){ev.preventDefault();snapshot();e.x+=move[0];e.y+=move[1];render()}});
+function stopDrag(){const old=history[history.length-1];if(validate().errors.length&&old){model=JSON.parse(old);history.pop()}drag=null;document.removeEventListener('pointermove',moveDrag);render()}
+document.addEventListener('keydown',ev=>{const e=current();if(!e||/input|select|textarea/i.test(document.activeElement.tagName))return;const d=ev.shiftKey?10:1,move={ArrowUp:[0,-d],ArrowDown:[0,d],ArrowLeft:[-d,0],ArrowRight:[d,0]}[ev.key];if(move){ev.preventDefault();snapshot();e.x+=move[0];e.y+=move[1];if(validate().errors.length){model=JSON.parse(history.pop())}render()}});
 document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snapshot();const type=b.dataset.add,id=type+'-'+Date.now().toString(36).slice(-6);model.elements.push({id,type,x:170,y:205,w:140,h:85,value:type==='clock'?'10:08':type==='date'?'OCT 24':type==='brand'?'WATCHWIT':'123',label:(type==='card'||type==='gauge')?'NEW':'',symbol:(type==='card'||type==='gauge')?'✦':'',color:'#8dd9ff',fontSize:type==='clock'?65:27});selected=id;render()});
 $('reference').onclick=async()=>{
  try{
@@ -142,8 +169,8 @@ $('undo').onclick=()=>{if(history.length){model=JSON.parse(history.pop());select
 $('save').onclick=()=>{localStorage.setItem('watchwit-studio-draft-v1',JSON.stringify(model));$('save').textContent='Saved ✓';setTimeout(()=>$('save').textContent='Save locally',1400)};
 $('scenario').onchange=ev=>{scenario=ev.target.value;render()};
 function download(name,content){const blob=new Blob([content],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-$('export').onclick=()=>download('watchwit-layout.json',JSON.stringify({...model,validation:validate().errors},null,2));
-$('png').onclick=()=>{
+$('export').onclick=()=>{const v=validate();if(v.errors.length){alert('Export blocked until all layout issues are fixed:\n'+v.errors.join('\n'));return;}download('watchwit-layout.json',JSON.stringify(model,null,2))};
+$('png').onclick=()=>{if(validate().errors.length){alert('Preview export blocked: correct all layout warnings first.');return;}
  const c=document.createElement('canvas');c.width=c.height=480;const ctx=c.getContext('2d');
  ctx.fillStyle='#020812';ctx.fillRect(0,0,480,480);ctx.save();ctx.beginPath();ctx.arc(240,240,239,0,Math.PI*2);ctx.clip();
  const g=ctx.createRadialGradient(240,190,10,240,240,260);g.addColorStop(0,'#19344f');g.addColorStop(1,'#040a13');ctx.fillStyle=g;ctx.fillRect(0,0,480,480);
