@@ -608,9 +608,9 @@ def build_layout(tm, bg_paths):
     vh = digit_h(K.VALUE_PX)
     slots = []
     centres = [
-        (106, 72, 113), (374, 72, 113),
-        (106, 343, 385), (240, 343, 385),
-        (374, 343, 385), (240, 72, 113),
+        (119, 75, 116), (361, 75, 116),
+        (119, 346, 392), (240, 346, 392),
+        (361, 346, 392), (240, 75, 116),
     ]
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
@@ -658,11 +658,11 @@ def build_layout(tm, bg_paths):
     top = K.MID - stack_h / 2
     # Compact horizontal header above hero clock, not Classic side stacks.
     L["date"] = dict(
-        dow=text_box(17, 130, 188, 62, "HEOTX"),
-        month=text_box(17, 245, 188, 64, "HEOTX"),
-        day=text_box(17, 304, 188, 40),
+        dow=text_box(20, 170, 184, 75, "HEOTX"),
+        month=text_box(20, 286, 184, 75, "HEOTX"),
+        day=text_box(20, 357, 184, 42),
     )
-    L["theme_edit"] = dict(x=95, y=172, w=225, h=31)
+    L["theme_edit"] = dict(x=110, y=174, w=260, h=29)
 
     bh = digit_h(K.BATTERY_VALUE_PX)
     # battery: the drawing is centred in its box and much shorter than it is wide, so
@@ -684,7 +684,7 @@ def build_layout(tm, bg_paths):
     gs = K.GLANCE_SIZE
     # the time is centred in the band on every screen; the condition text is centred in the
     # space between the digits and the band's lower edge
-    time_cy = K.MID
+    time_cy = 253
     gv = (K.BAND_IN[1] - (time_cy + th / 2) - dh22) / 2
     desc_cy = time_cy + th / 2 + gv + dh22 / 2
     # status icons: a pair at the band in the top- and bottom-middle sections
@@ -831,7 +831,7 @@ def generate():
             continue
         shutil.rmtree(child) if child.is_dir() else child.unlink()
     F.write_watch_font(OUT / "fonts" / F.TEXT_FONT_SUBSET_NAME)
-    K.TIME_PX = 112
+    K.TIME_PX = 148
     bg = make_backgrounds()
     tm = make_time_digits()
     make_icons()
