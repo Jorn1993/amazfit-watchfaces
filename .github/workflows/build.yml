@@ -146,7 +146,7 @@ jobs:
           data['app']['description']='WatchWit visual redesign preview — separate installation from the stable face.'
           for lang in data['i18n'].values():
               lang['appName']='WatchWit Preview v0.3.0'
-          p.write_text(json.dumps(data,indent=2)+'\\n')
+          p.write_text(json.dumps(data,indent=2)+chr(10))
           PY
           python preview-source/faces/sextant/design/generate.py
           npm test --prefix preview-source
