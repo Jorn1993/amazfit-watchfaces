@@ -50,7 +50,7 @@ The repo was created **private**. Zepp's QR installer needs an externally reacha
 - Open **Actions → Build Nautic Palette and installation QR → Run workflow**. The successful workflow uploads the `.zpk` and install QR as build artifacts and deploys the installer page.
 - Check the deployment URL above (the `.zpk` must be publicly downloadable over HTTPS). Only then scan the QR code.
 
-**Current build status:** The watchface source and automated build are maintained in this repository. The first private-repository build could not acquire a hosted runner; the repository has since been made public so GitHub can attempt a fresh build. Successful automated tests and compilation do not yet constitute an on-watch installation test.
+**Current build status:** Successfully compiled and tested on 2026-10-24 using GitHub Actions ([successful build](https://github.com/Jorn1993/amazfit-watchfaces/actions/runs/40098875166)). All 27 offline watchface scenarios passed; the 480×480 ZPK was validated, and GitHub Pages deployed the QR installation site successfully. This does not yet constitute an installation test on a physical Amazfit Balance 2. If the install page is not loading, check the workflow deployment and GitHub Pages settings.
 
 ## Repository structure
 
