@@ -71,7 +71,7 @@ DIAG_AT_GAUGE_MID = False                 # diagonal markers at the corner gauge
                                           #   instead of 45.5, so they point at turned values
 AOD_STROKE = 2.0                          # always-on outline digits (Zepp: at least 2px)
 TIME_PX = None                            # (solved by the generator; tabular cells)
-VALUE_PX = 30                             # complication values (Roboto Condensed Regular)
+VALUE_PX = 34                             # complication values (Roboto Condensed Regular)
 UNIT_PX = 16                              # Zepp's minimum text size
 DATE_SMALL_PX, DATE_DAY_PX = 19, 29
 BATTERY_VALUE_PX = 23
@@ -89,6 +89,7 @@ def hexrgb(h):
 
 METRICS = {
     # id: (title, colour, has_progress)
+    "battery":  ("Battery",        "#4DE982", True),
     "steps":    ("Steps",          "#3DDC84", True),
     "heart":    ("Heart rate",     "#FF4D5E", False),
     "distance": ("Distance",       "#3DA5FF", False),
@@ -119,7 +120,7 @@ METRICS = {
 }
 # editor titles in Simplified and Traditional Chinese (Zepp asks for English, SC and TC)
 TITLES_ZH = {
-    "steps": ("步数", "步數"), "distance": ("距离", "距離"), "calories": ("卡路里", "卡路里"),
+    "battery": ("电池", "電池"), "steps": ("步数", "步數"), "distance": ("距离", "距離"), "calories": ("卡路里", "卡路里"),
     "floors": ("爬楼", "爬樓"), "stand": ("站立", "站立"), "fatburn": ("燃脂", "燃脂"), "pai": ("PAI", "PAI"),
     "heart": ("心率", "心率"), "resting": ("静息心率", "靜息心率"), "spo2": ("血氧", "血氧"),
     "stress": ("压力", "壓力"), "bodytemp": ("体温", "體溫"), "sleep": ("睡眠", "睡眠"),
@@ -131,7 +132,7 @@ TITLES_ZH = {
 }
 # small unit letters some metrics draw after their value (in the metric's colour)
 UNIT_CHARS = {"distance": "kmi", "recovery": "h", "altitude": "mft", "pressure": "hPa", "compass": "NESW"}
-DEFAULT_SLOTS = ["calories", "heart", "distance", "steps", "stand", "weather"]   # TL, TR, BL, BM, BR, TM
+DEFAULT_SLOTS = ["steps", "calories", "battery", "weather", "distance", "heart"]   # TL, TR, BL, BM, BR, TM
 EDIT_METRICS = None                       # metrics the editable slots offer (None: all)
 FIXED_SLOTS = {}                          # {slot index: metric} for slots that aren't editable
 DEMO_VALUES = None                        # mock-ups only: {metric: {"text", "unit", "progress", "icon"}}
@@ -142,7 +143,7 @@ THEMES = {
         text=(244, 246, 248), muted=(150, 160, 172), accent=(214, 172, 96),
         desc=(255, 214, 120), divider=(52, 59, 68),
         band=((20, 34, 58), (8, 13, 24)), glow_lo=(20, 24, 30),
-        time=((236, 205, 140), (196, 150, 72)),          # brass gradient (top -> bottom)
+        time=((255, 255, 255), (208, 228, 251)),          # brass gradient (top -> bottom)
         aod_time=(214, 176, 112), aod_text=(180, 186, 194),
         dim_factor=0.30,
     ),
