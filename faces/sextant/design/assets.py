@@ -579,7 +579,7 @@ def build_layout(tm, bg_paths):
     L["_notes_rim_gap"] = 16
     asc, desc = F.vmetrics(str(F.TEXT_FONT))
     for cx, icy, vcy in centres:
-        vbox = text_box(K.VALUE_PX, cx, vcy, 132)
+        vbox = text_box(K.VALUE_PX, cx, vcy, 100)
         # unit box: shares the value's baseline
         v_line_h = (asc + desc) * K.VALUE_PX
         baseline = vbox["y"] + (vbox["h"] - v_line_h) / 2 + asc * K.VALUE_PX
