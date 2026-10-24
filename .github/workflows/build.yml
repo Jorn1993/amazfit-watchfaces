@@ -1,5 +1,5 @@
 name: Build WatchWit and installation QR
-# Preview source: visual-refinement-v0.3 (real six-pod Dashboard and battery complication)
+# Preview source: visual-refinement-v0.3 (six-pod Dashboard with battery picker previews)
 
 on:
   push:
