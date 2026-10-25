@@ -15,8 +15,11 @@ ids=re.findall(r"'([a-z0-9_]+)'",names.group(1))
 errors=[]
 if len(ids)<25 or len(set(ids))!=len(ids): errors.append("insufficient or duplicate metric options")
 for metric in ids:
- for path in [f"icons/color/{metric}.png",f"edit/preview_{metric}.png"]:
-  if not (assets/path).is_file(): errors.append("missing editor asset "+path)
+ icon_files = list((assets/"icons/color").glob("weather_*.png")) if metric == "weather" else [assets/f"icons/color/{metric}.png"]
+ if not icon_files or any(not p.is_file() for p in icon_files):
+  errors.append("missing color icon for "+metric)
+ preview=assets/f"edit/preview_{metric}.png"
+ if not preview.is_file(): errors.append("missing editor preview "+str(preview))
 if "select_list:" not in runtime or "icon: `icons/color/${id}.png`" not in runtime:
  errors.append("full-screen picker or list icons removed")
 if len(L["slots"])!=6: errors.append("wrong number of selectable complications")
