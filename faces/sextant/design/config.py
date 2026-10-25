@@ -71,12 +71,12 @@ DIAG_AT_GAUGE_MID = False                 # diagonal markers at the corner gauge
                                           #   instead of 45.5, so they point at turned values
 AOD_STROKE = 2.0                          # always-on outline digits (Zepp: at least 2px)
 TIME_PX = None                            # (solved by the generator; tabular cells)
-VALUE_PX = 27                             # complication values (Roboto Condensed Regular)
+VALUE_PX = 25                             # complication values (Roboto Condensed Regular)
 UNIT_PX = 16                              # Zepp's minimum text size
 DATE_SMALL_PX, DATE_DAY_PX = 19, 29
 BATTERY_VALUE_PX = 23
 DESC_PX = 22
-ICON_PX = 26
+ICON_PX = 20
 ICON_GAP = 10                             # icon box <-> value box
 VISIBLE_ICON_GAP = 13.5                   # the same gap measured on the drawings (icons sit ~3.5px inside their box)
 LINE_W = 3                                # dividers, separators, band edges (2 was too faint on the watch)
