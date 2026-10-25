@@ -668,7 +668,7 @@ def build_layout(tm, bg_paths):
         part = elements[name]
         cx = part["x"] + part["w"] / 2
         icon_cy = part["y"] + 23
-        value_cy = part["y"] + 51
+        value_cy = part["y"] + 52
         centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
@@ -816,7 +816,16 @@ def write_layout(L):
 def make_edit_assets(L):
     def frame(w, h, col, width):
         img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
-        ImageDraw.Draw(img).rounded_rectangle([P(1), P(1), P(w - 1), P(h - 1)], radius=P(14), outline=col, width=P(width))
+        draw = ImageDraw.Draw(img)
+        if 70 <= w <= 130:
+            # Native edit selectors follow the circular complication artwork.
+            d = min(w, h)
+            left, top = (w-d)/2, (h-d)/2
+            draw.ellipse([P(left+1),P(top+1),P(left+d-1),P(top+d-1)],
+                         outline=col,width=P(width))
+        else:
+            draw.rounded_rectangle([P(1),P(1),P(w-1),P(h-1)],
+                                   radius=P(14),outline=col,width=P(width))
         return down(img)
     sizes = {(s["edit"]["w"], s["edit"]["h"]) for s in L["slots"]}
     sizes.add((L["theme_edit"]["w"], L["theme_edit"]["h"]))
@@ -845,13 +854,13 @@ def make_edit_assets(L):
                    resting="58", sleep="7:32", sleepscore="84", bodytemp="36.4°", vo2max="48", trainload="245",
                    recovery="36h", altitude="312m", pressure="1013", compass="312° NW", moon="73%", forecast="21/12°")
     w, h = L["slots"][0]["edit"]["w"], L["slots"][0]["edit"]["h"]
-    f = F.pil_font(str(F.TEXT_FONT), 34, S)
+    f = F.pil_font(str(F.TEXT_FONT), 26, S)
     for metric, txt in samples.items():
         img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         svg = weather_svg("partly_day") if metric in ("weather", "forecast") else METRIC_SVG[metric]("#%02x%02x%02x" % K.hexrgb(K.METRICS[metric][1]))
-        icon = svg_to_image(svg, 28 * S)
-        img.alpha_composite(icon, (img.width // 2 - icon.width // 2, P(8)))
-        ImageDraw.Draw(img).text((img.width // 2, P(h - 14)), txt, font=f, fill=(244, 246, 248, 255), anchor="ms")
+        icon = svg_to_image(svg, 24 * S)
+        img.alpha_composite(icon, (img.width // 2 - icon.width // 2, P(13)))
+        ImageDraw.Draw(img).text((img.width // 2, P(h - 15)), txt, font=f, fill=(244, 246, 248, 255), anchor="ms")
         save(down(img), f"edit/preview_{metric}.png")
     # theme + night previews
     tw, th_ = L["theme_edit"]["w"], L["theme_edit"]["h"]
