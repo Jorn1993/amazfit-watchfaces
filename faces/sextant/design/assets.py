@@ -667,8 +667,8 @@ def build_layout(tm, bg_paths):
     for name in slot_names:
         part = elements[name]
         cx = part["x"] + part["w"] / 2
-        icon_cy = part["y"] + 23
-        value_cy = part["y"] + 52
+        icon_cy = part["y"] + 19
+        value_cy = part["y"] + 48
         centres.append((cx, icon_cy, value_cy))
     sections_rows = dict(top=160, bottom=320)
     RULE_PTS.clear()
@@ -689,7 +689,7 @@ def build_layout(tm, bg_paths):
             cx=round(cx, 1),
             icon=dict(x=round(cx - K.ICON_PX / 2), y=round(icy - K.ICON_PX / 2), size=K.ICON_PX),
             value=vbox,
-            caption=dict(x=round(cx - 26), y=round(elements[slot_name]["y"] + 66), w=52, h=13, size=10),
+            caption=dict(x=round(cx - 21), y=round(elements[slot_name]["y"] + 70), w=42, h=10, size=10),
             unit=dict(y=round(u_y, 1), h=u_h, size=K.UNIT_PX),
             edit=dict(x=round(cx - 58), y=round(top_y), w=116, h=round(bot_y - top_y)),
         ))
