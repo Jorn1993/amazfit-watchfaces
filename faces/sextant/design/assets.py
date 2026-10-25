@@ -230,9 +230,16 @@ def make_backgrounds():
             x2=cx+r*math.cos(math.radians(bb)); y2=cy+r*math.sin(math.radians(bb))
             svg.append(f'<path d="M{x1:.2f},{y1:.2f} A{r},{r} 0 0 1 {x2:.2f},{y2:.2f}" '
                        f'fill="none" stroke="{colour}" stroke-width="{width}" opacity="{op}"/>')
-        # No peripheral blocks: they competed with the six complication gauges,
-        # were disconnected from live metrics and reduced usable screen space.
-        svg.append('<circle cx="240" cy="240" r="226" fill="none" stroke="#1c344b" stroke-width="1.4"/>')
+        # Segmented outer bezel is decorative, while the six inner pod
+        # progress arcs remain the only sensor-bound gauges.
+        zones = ((194,260,aqua),(282,350,warm),(16,79,aqua),(101,165,green))
+        for angle in range(0,360,8):
+            colour = '#34475b'
+            for lower,upper,hue in zones:
+                if lower <= angle < upper:
+                    colour = hue if angle < lower + (upper-lower)*.74 else '#35475d'
+            seg(240,240,225,angle,angle+5.5,8.5,colour)
+        svg.append('<circle cx="240" cy="240" r="213" fill="none" stroke="#1c344b" stroke-width="1.4"/>')
         # Central body with shaped shoulder silhouette and cyan inset rails.
         shoulder=('M 48 171 Q 58 163 81 162 L 139 162 Q 154 161 164 158 '
                   'Q 172 155 190 155 L 291 155 Q 310 155 317 156 '
