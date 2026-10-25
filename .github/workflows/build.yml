@@ -154,6 +154,7 @@ jobs:
           python preview-source/faces/sextant/design/generate.py
           python preview-source/tools/check_orbit_geometry.py
           python preview-source/tools/check_orbit_runtime_layout.py
+          python preview-source/tools/check_reference_editor.py
           npm test --prefix preview-source
           python preview-source/tools/render_reference_preview.py
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
