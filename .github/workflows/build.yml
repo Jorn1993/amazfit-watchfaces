@@ -45,18 +45,14 @@ jobs:
         run: |
           python faces/sextant/design/generate.py
 
-      - name: Generate unique Classic cover and icon
+      - name: Render Classic selector artwork from generated watchface assets
         run: |
+          python tools/render_watchface_preview.py --face faces/sextant
           python - <<'PY'
-          from PIL import Image, ImageDraw, ImageFont
           from pathlib import Path
+          from PIL import Image
           folder=Path('faces/sextant/assets/common.r')
-          bg=Image.open(folder/'bg/color.png').convert('RGBA')
-          draw=ImageDraw.Draw(bg)
-          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',77)
-          draw.text((240,240),'10:08',anchor='mm',font=font,fill='#ffffff',stroke_width=1)
-          bg.save(folder/'cover.png')
-          bg.resize((128,128),Image.Resampling.LANCZOS).save(folder/'icon.png')
+          Image.open(folder/'cover.png').resize((128,128),Image.Resampling.LANCZOS).save(folder/'icon.png')
           PY
 
       - name: Check all watchface scenarios
@@ -257,6 +253,15 @@ jobs:
           gallery.mkdir(parents=True,exist_ok=True)
           shutil.copyfile('faces/sextant/assets/common.r/cover.png',gallery/'classic.png')
           shutil.copyfile('preview-source/faces/sextant/assets/common.r/cover.png',gallery/'reference.png')
+          # The gallery uses precisely the same artwork placed in each ZPK.
+          for source,target in [
+              (Path('faces/sextant/assets/common.r/cover.png'),gallery/'classic.png'),
+              (Path('preview-source/faces/sextant/assets/common.r/cover.png'),gallery/'reference.png')
+          ]:
+              assert source.read_bytes()==target.read_bytes(),f'Gallery/selector image mismatch: {target}'
+              assert Image.open(target).size==(480,480),f'Bad gallery dimensions: {target}'
+              print('Verified same source artwork for gallery and selector:',target)
+
           (gallery/'index.html').write_text('''<!doctype html><html lang="en"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Gallery</title>
           <style>*{box-sizing:border-box}body{margin:0;background:#0c1421;color:#edf6ff;font:16px system-ui}
@@ -268,10 +273,10 @@ jobs:
           .link{display:inline-block;padding:11px 15px;border-radius:10px;background:#308ce8;color:white;text-decoration:none;font-weight:650;margin:14px 6px 0 0}
           a{color:#9bcffe}.small{font-size:13px}</style></head><body><main>
           <h1>WatchWit Gallery</h1><p>All available watchfaces for your Amazfit Balance 2. Each face has its own installation package and watchface-selector preview.</p>
-          <div class="grid"><article><img src="classic.png" alt="WatchWit Classic face preview">
+          <div class="grid"><article><img src="classic.png?v=20261025" alt="WatchWit Classic face preview">
           <h2>WatchWit Classic</h2><div class="meta">v0.2.1 · Original design · App ID 21319240</div>
           <a class="link" href="../">Install / QR</a></article>
-          <article><img src="reference.png" alt="WatchWit Reference face preview">
+          <article><img src="reference.png?v=20261025" alt="WatchWit Reference face preview">
           <h2>WatchWit Reference</h2><div class="meta">v0.2.6 · Six-gauge modern face · App ID 21319243</div>
           <a class="link" href="../preview/">Install / QR</a></article></div>
           <p class="small">Use <a href="../studio/">WatchWit Studio</a> to design more faces. Installing requires Zepp Developer Mode.</p>
