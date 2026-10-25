@@ -26,13 +26,13 @@ for idx,name in enumerate(order):
  for kind,rect in boxes.items():
   if not inside(rect,cx,cy,radius):
    errors.append(name+': '+kind+' escapes circular safe interior: '+str(rect))
- if abs(slot['caption']['x']+slot['caption']['w']/2-cx)>1 or abs(slot['caption']['y']-(p['y']+66))>1:
+ if abs(slot['caption']['x']+slot['caption']['w']/2-cx)>1 or abs(slot['caption']['y']-(p['y']+70))>1:
   errors.append(name+': caption no longer agrees with Studio geometry')
  if boxes['icon'][1]+boxes['icon'][3]>boxes['value'][1]+2:
   errors.append(name+': icon collides with value')
  if boxes['value'][1]+boxes['value'][3]>boxes['caption'][1]+2:
   errors.append(name+': value collides with caption')
- if abs(icon['y']+icon['size']/2-(p['y']+23))>1:
+ if abs(icon['y']+icon['size']/2-(p['y']+19))>1:
   errors.append(name+': icon is not correctly centered in internal layout')
  if abs(val['x']+val['w']/2-cx)>1:
   errors.append(name+': value not horizontally centered')
