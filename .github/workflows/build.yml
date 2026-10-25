@@ -1,5 +1,5 @@
 name: Build WatchWit and installation QR
-# Preview source: watchwit-orbit; reference bezel refinement verified by 480px asset render (isolated live gauges, render matches runtime captions) (six-pod Reference with battery picker previews)
+# Preview source: watchwit-orbit; edit-mode coverage and indexed weather icon QA (isolated live gauges, render matches runtime captions) (six-pod Reference with battery picker previews)
 
 on:
   push:
