@@ -45,6 +45,20 @@ jobs:
         run: |
           python faces/sextant/design/generate.py
 
+      - name: Generate unique Classic cover and icon
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          from pathlib import Path
+          folder=Path('faces/sextant/assets/common.r')
+          bg=Image.open(folder/'bg/color.png').convert('RGBA')
+          draw=ImageDraw.Draw(bg)
+          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',77)
+          draw.text((240,240),'10:08',anchor='mm',font=font,fill='#ffffff',stroke_width=1)
+          bg.save(folder/'cover.png')
+          bg.resize((128,128),Image.Resampling.LANCZOS).save(folder/'icon.png')
+          PY
+
       - name: Check all watchface scenarios
         run: npm test
 
@@ -157,6 +171,14 @@ jobs:
           python preview-source/tools/check_reference_editor.py
           npm test --prefix preview-source
           python preview-source/tools/render_reference_preview.py
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          folder=Path('preview-source/faces/sextant/assets/common.r')
+          preview=Image.open('preview-source/site/preview/watchwit-reference-preview.png').convert('RGB')
+          preview.save(folder/'cover.png')
+          preview.resize((128,128),Image.Resampling.LANCZOS).save(folder/'icon.png')
+          PY
           (cd preview-source/faces/sextant && ../../../zeus-cli/node_modules/.bin/zeus build)
           mkdir -p site/preview
           cp preview-source/site/preview/watchwit-reference-preview.png site/preview/watchwit-reference-preview.png
@@ -224,6 +246,38 @@ jobs:
           shutil.copyfile('preview-source/faces/sextant/assets/common.r/bg/color.png','site/studio/reference-background.png')
           PY
           node --check /tmp/watchwit-studio-check.js
+
+      - name: Generate WatchWit gallery
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import shutil
+          gallery=Path('site/gallery')
+          gallery.mkdir(parents=True,exist_ok=True)
+          shutil.copyfile('faces/sextant/assets/common.r/cover.png',gallery/'classic.png')
+          shutil.copyfile('preview-source/faces/sextant/assets/common.r/cover.png',gallery/'reference.png')
+          (gallery/'index.html').write_text('''<!doctype html><html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>WatchWit Gallery</title>
+          <style>*{box-sizing:border-box}body{margin:0;background:#0c1421;color:#edf6ff;font:16px system-ui}
+          main{max-width:1050px;margin:auto;padding:34px 20px}h1{margin:0}p{color:#adc2d9;line-height:1.55}
+          .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px;margin:28px 0}
+          article{background:#172539;border:1px solid #2d4461;border-radius:18px;padding:20px}
+          img{display:block;aspect-ratio:1;width:100%;border-radius:50%;object-fit:cover}
+          h2{margin:17px 0 3px;font-size:21px}.meta{font-size:13px;color:#adc2d9}
+          .link{display:inline-block;padding:11px 15px;border-radius:10px;background:#308ce8;color:white;text-decoration:none;font-weight:650;margin:14px 6px 0 0}
+          a{color:#9bcffe}.small{font-size:13px}</style></head><body><main>
+          <h1>WatchWit Gallery</h1><p>All available watchfaces for your Amazfit Balance 2. Each face has its own installation package and watchface-selector preview.</p>
+          <div class="grid"><article><img src="classic.png" alt="WatchWit Classic face preview">
+          <h2>WatchWit Classic</h2><div class="meta">v0.2.1 · Original design · App ID 21319240</div>
+          <a class="link" href="../">Install / QR</a></article>
+          <article><img src="reference.png" alt="WatchWit Reference face preview">
+          <h2>WatchWit Reference</h2><div class="meta">v0.2.6 · Six-gauge modern face · App ID 21319243</div>
+          <a class="link" href="../preview/">Install / QR</a></article></div>
+          <p class="small">Use <a href="../studio/">WatchWit Studio</a> to design more faces. Installing requires Zepp Developer Mode.</p>
+          </main></body></html>''')
+          assert (gallery/'classic.png').read_bytes() != (gallery/'reference.png').read_bytes()
+          PY
 
       - name: Upload installable files to the Actions run
         uses: actions/upload-artifact@v4
