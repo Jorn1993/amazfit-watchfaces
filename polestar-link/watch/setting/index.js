@@ -34,10 +34,15 @@ AppSettingsPage({
         const pending=s.getItem('polestar.login.request');
         const sent=Number(s.getItem('polestar.login.request.at')||0);
         if(pending){
-          s.setItem('polestar.login.status',
-            Date.now()-sent>120000
-            ? 'Sign-in timed out before the Zepp service started. Open the watch app, then sign in again.'
-            : 'Waiting for the Zepp phone service. Open Polestar Link on your watch.');
+          if(Date.now()-sent>120000){
+            s.removeItem('polestar.login.request');
+            s.removeItem('polestar.login.request.at');
+            s.setItem('polestar.login.status',
+              'Sign-in timed out. Open Polestar Link on your watch and sign in again.');
+          }else{
+            s.setItem('polestar.login.status',
+              'Waiting for Zepp. Open Polestar Link on your watch, then check again.');
+          }
         }else{
           const stage=s.getItem('polestar.log');
           s.setItem('polestar.login.status',stage||'No pending sign-in request. Enter password and try again.');
