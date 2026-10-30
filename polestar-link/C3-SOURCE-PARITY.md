@@ -45,3 +45,11 @@ The reference library works because it uses Python's `grpclib` with an **HTTP/2*
 - a complete remote-command lifecycle, with user confirmation and independent vehicle-state verification.
 
 Until then, a watch UI may show the planned controls as unavailable, but they must never claim a successful action.
+
+## Reference attribution
+
+The C3 message definitions and behavior referenced by this port are based on
+[kildahldev/unofficial-polestar-api](https://github.com/kildahldev/unofficial-polestar-api),
+MIT License, Copyright (c) 2025. The original MIT license and disclaimer are available in
+[that project's LICENSE](https://github.com/kildahldev/unofficial-polestar-api/blob/main/LICENSE).
+This project is not affiliated with or endorsed by Polestar.
