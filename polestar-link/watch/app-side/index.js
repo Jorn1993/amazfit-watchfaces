@@ -12,6 +12,7 @@ function trace(stage,detail){
 function json(r){try{return typeof r.body==='string'?JSON.parse(r.body):r.body;}catch(e){return null;}}
 function header(r,key){
  const h=r.headers||{};
+ if(typeof h.get==='function')return h.get(key)||'';
  const target=String(key).toLowerCase();
  for(const k of Object.keys(h))if(k.toLowerCase()===target)return h[k]||'';
  return '';
@@ -45,8 +46,7 @@ async function authorizationPreflight(){
  const r=await http(url);
  const body=typeof r.body==='string'?r.body:'';
  // Report *only* booleans and status. Never return raw HTML, cookies or URLs.
- const cookieNames=Object.keys(r.headers||{}).filter(k=>k.toLowerCase()==='set-cookie');
- const rawCookie=cookieNames.length?header(r,'set-cookie'):'';
+ const rawCookie=header(r,'set-cookie');
  const hasCookie=!!rawCookie;
  const resume=/(?:url|action)\s*:\s*["'][^"']+["']/.test(body);
  return {
