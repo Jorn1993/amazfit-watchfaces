@@ -3,22 +3,21 @@ import { BasePage } from '@zeppos/zml/base-page';
 Page(BasePage({
  build(){
   this.busy=false;this.disposed=false;
-  ui.createWidget(ui.widget.TEXT,{x:70,y:60,w:340,h:52,text:'LINK TEST',text_size:32,color:0xffffff,align_h:ui.align.CENTER_H});
-  ui.createWidget(ui.widget.TEXT,{x:55,y:115,w:370,h:40,text:'Balance 2 • Android',text_size:22,color:0x9baabb,align_h:ui.align.CENTER_H});
-  this.result=ui.createWidget(ui.widget.TEXT,{x:55,y:172,w:370,h:126,text:'Start the bridge on your phone',text_size:24,color:0x79dfbd,align_h:ui.align.CENTER_H,text_style:ui.text_style.WRAP});
-  ui.createWidget(ui.widget.BUTTON,{x:90,y:312,w:300,h:64,radius:26,normal_color:0x245e50,press_color:0x34836f,text:'Test connection',text_size:24,color:0xffffff,click_func:()=>this.test()});
-  ui.createWidget(ui.widget.TEXT,{x:80,y:390,w:320,h:35,text:'Diagnostic only • no car access',text_size:17,color:0x8997a6,align_h:ui.align.CENTER_H});
+  ui.createWidget(ui.widget.TEXT,{x:60,y:55,w:360,h:48,text:'POLESTAR LINK',text_size:30,color:0xffffff,align_h:ui.align.CENTER_H});
+  ui.createWidget(ui.widget.TEXT,{x:55,y:118,w:370,h:35,text:'DEMO • NOT CONNECTED',text_size:20,color:0xffbd73,align_h:ui.align.CENTER_H});
+  this.result=ui.createWidget(ui.widget.TEXT,{x:45,y:166,w:390,h:76,text:'Open Zepp app settings to configure',text_size:21,color:0xb9c7d6,text_style:ui.text_style.WRAP,align_h:ui.align.CENTER_H});
+  ui.createWidget(ui.widget.BUTTON,{x:62,y:265,w:165,h:66,radius:20,normal_color:0x223c4b,press_color:0x31566c,text:'LOCK',text_size:25,color:0xffffff,click_func:()=>this.demo('Lock')});
+  ui.createWidget(ui.widget.BUTTON,{x:253,y:265,w:165,h:66,radius:20,normal_color:0x223c4b,press_color:0x31566c,text:'UNLOCK',text_size:25,color:0xffffff,click_func:()=>this.demo('Unlock')});
+  ui.createWidget(ui.widget.BUTTON,{x:110,y:353,w:260,h:56,radius:20,normal_color:0x1d6156,press_color:0x327d6b,text:'Test Zepp',text_size:20,color:0xffffff,click_func:()=>this.test()});
  },
- show(text){if(!this.disposed)this.result.setProperty(ui.prop.TEXT,text);},
+ show(t){if(!this.disposed)this.result.setProperty(ui.prop.TEXT,t);},
+ demo(action){this.show(action+' unavailable\nConnect Polestar first');},
  async test(){
-  if(this.busy)return;this.busy=true;this.show('Checking Zepp…');
-  let zepp=false;const started=Date.now();
+  if(this.busy)return;this.busy=true;this.show('Checking Zepp connection…');
   try{
-   await this.request({method:'zepp.ping'},{timeout:8000});zepp=true;
-   this.show('Zepp connected\nChecking Android…');
-   const reply=await this.request({method:'bridge.probe',params:{nonce:String(Date.now())}},{timeout:8000});
-   this.show(reply.ok?'Connected • '+(Date.now()-started)+' ms\nPhone '+(reply.locked?'locked':'unlocked')+'\nTest #'+reply.count:'Zepp connected\n'+reply.error);
-  }catch(e){this.show(zepp?'Zepp connected\nAndroid test timed out':'Zepp not responding\nCheck watch connection');}
+   const r=await this.request({method:'zepp.ping'},{timeout:8000});
+   this.show(r&&r.ok?'Zepp connected\nVehicle not configured':'Zepp service not responding');
+  }catch(e){this.show('Cannot reach Zepp phone service');}
   finally{this.busy=false;}
  },
  onDestroy(){this.disposed=true;}
