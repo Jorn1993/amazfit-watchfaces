@@ -12,6 +12,18 @@ Source code lives on `feature/polestar-link`. Do not merge as an advertised work
 - `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
 - These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
+## First authenticated Polestar 4 device test and vehicle lookup (v1.3.16)
+
+On 30 October 2026, a real Android Zepp v1.3.15 test reached the authenticated `vehicles(token)` stage and returned `No Polestar vehicles found`. The owner also demonstrated that their Polestar 4 is linked in the official Polestar app. This is strong evidence that OAuth/PKCE login and code exchange succeeded, **not** evidence that the account lacks a car.
+
+Discovery now performs two authenticated, read-only vehicle listing requests:
+1. Mobile `GetVDMSCars` at `/eu-north-1/app-backend/api/graphql`, used by unofficial-polestar-api.
+2. MyStar `GetConsumerCarsV2` at `/eu-north-1/mystar-v2/`, used by pypolestar.
+
+The app saves only source HTTP statuses, response shape labels and vehicle counts in `polestar.vehicle.lookup`; it never logs raw responses, VINs or access tokens. If neither API lists a car, the valid OAuth token remains available and Zepp Settings offers **Retry vehicle lookup (no password)**. It does not report a connected vehicle until a VIN and C3 endpoint are confirmed.
+
+Remaining issues: exact account/backend region, true HTTP/2 gRPC binary support and real car lock/unlock are not verified. Do not call this a working car key.
+
 ## Personal real-account login test (v1.3.13)
 
 Zepp Settings now has editable **Polestar email** and visually masked **Polestar password** fields and a **Sign in to Polestar** button. Pressing the button sends a one-shot, timestamp-limited login request through the supported Settings Storage bridge. Side Service immediately removes the queued request and executes the previously tested PKCE authorization-code login implemented in `app-side/oidc.js`. On token response it attempts to discover the account's Polestar car; otherwise a diagnostic error is displayed. Email is remembered to make subsequent attempts easier. Password is not intentionally retained after submission.
