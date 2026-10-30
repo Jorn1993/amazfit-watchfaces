@@ -1,7 +1,7 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 const store=()=>settings.settingsStorage;
 const checks=[
- {name:'Polestar ID login page',url:'https://polestarid.eu.polestar.com/Account/login',method:'GET'},
+ {name:'OAuth authorization',url:'https://polestarid.eu.polestar.com/as/authorization.oauth2?response_type=code&client_id=l3oopkc_10&redirect_uri=https%3A%2F%2Fwww.polestar.com%2Fsign-in-callback&scope=openid%20profile%20email&state=zepp-probe',method:'GET'},
  {name:'Polestar ID root',url:'https://polestarid.eu.polestar.com/',method:'GET'},
  {name:'Public website control',url:'https://www.polestar.com/',method:'GET'}
 ];
@@ -22,7 +22,7 @@ AppSideService(BaseSideService({
   });
  },
  onRequest(req,res){
-   if(req.method==='zepp.ping'){res(null,{ok:true,version:'0.9.0'});return;}
+   if(req.method==='zepp.ping'){res(null,{ok:true,version:'0.9.1'});return;}
    res(null,{ok:false,error:'Polestar sign-in and vehicle commands not implemented'});
  }
 }));
