@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grpcFrame, grpcPayload, encodeVin, requestFor, decodeBattery, decodeExterior, decodeInvocation, fields, bytes } from '../app-side/proto.js';
+import { grpcFrame, grpcPayload, grpcMessages, encodeVin, requestFor, decodeBattery, decodeExterior, decodeInvocation, fields, bytes } from '../app-side/proto.js';
 
 const vin='YSMABCDE0R0000001';
 function varint(n) {const a=[]; do{const b=n&127;n=Math.floor(n/128);a.push(n?b|128:b);}while(n);return a;}
@@ -39,4 +39,12 @@ test('Invocation reports success only for Polestar SUCCESS=6',()=>{
   assert.deepEqual(decodeInvocation(invocation(6)).ok,true);
   for(const status of [0,1,2,4,5,7,8,9,10,11,12])assert.equal(decodeInvocation(invocation(status)).ok,false);
   assert.throws(()=>decodeInvocation(Uint8Array.of(8,1)),/No Polestar command response/);
+});
+
+test('streamed command responses preserve final success',()=>{
+ const stream=Uint8Array.from([...grpcFrame(invocation(1)),...grpcFrame(invocation(4)),...grpcFrame(invocation(6))]);
+ const messages=grpcMessages(stream);
+ assert.deepEqual(messages.map(m=>decodeInvocation(m).status),[1,4,6]);
+ assert.equal(decodeInvocation(messages[messages.length-1]).ok,true);
+ assert.throws(()=>grpcMessages(stream.slice(0,-1)),/Truncated/);
 });
