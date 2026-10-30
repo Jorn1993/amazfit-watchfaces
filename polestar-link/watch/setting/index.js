@@ -1,27 +1,22 @@
 AppSettingsPage({
- state:{host:'',token:'',vin:'',path:''},
+ state:{email:'',password:''},
  build(props){
   const s=props.settingsStorage;
-  this.state.host=s.getItem('direct.host')||this.state.host;
-  this.state.vin=s.getItem('direct.vin')||this.state.vin;
-  this.state.path=s.getItem('direct.path')||this.state.path;
-  const field={padding:'12px',marginBottom:'14px',borderRadius:'12px',background:'#f1f3f6'};
-  return View({style:{padding:'20px',background:'#ffffff'}},[
-   Text({bold:true,style:{fontSize:'24px',marginBottom:'12px'}},'Polestar Link Lab'),
-   Text({paragraph:true},'v1.1.0 · Direct C3 transport experiment. No gateway required. This does not log in or control the vehicle yet.'),
-   View({style:field},[TextInput({label:'C3 API HTTPS host',placeholder:'https://api-host',value:this.state.host,onChange:v=>{this.state.host=v;}})]),
-   View({style:field},[TextInput({label:'Vehicle VIN',placeholder:'17-character VIN',value:this.state.vin,onChange:v=>{this.state.vin=v;}})]),
-   View({style:field},[TextInput({label:'gRPC method path',placeholder:'/package.Service/Method',value:this.state.path,onChange:v=>{this.state.path=v;}})]),
-   View({style:field},[TextInput({label:'Access token',placeholder:'OAuth bearer token',value:this.state.token,onChange:v=>{this.state.token=v;}})]),
-   Button({label:'Save and test direct gRPC',onClick:()=>{
-    s.setItem('direct.host',(this.state.host||'').trim());
-    s.setItem('direct.vin',(this.state.vin||'').trim());
-    s.setItem('direct.path',(this.state.path||'').trim());
-    if(this.state.token){s.setItem('direct.token',this.state.token);this.state.token='';}
-    s.setItem('direct.probe',String(Date.now()));
+  this.state.email=s.getItem('polestar.email')||this.state.email;
+  const field={padding:'14px',marginBottom:'16px',borderRadius:'12px',background:'#f1f3f6'};
+  return View({style:{padding:'22px',background:'#ffffff'}},[
+   Text({bold:true,style:{fontSize:'26px',marginBottom:'12px'}},'Polestar Link'),
+   Text({paragraph:true,style:{marginBottom:'18px'}},'Sign in with your Polestar ID'),
+   View({style:field},[TextInput({label:'Email',placeholder:'Email address',value:this.state.email,onChange:v=>{this.state.email=v;}})]),
+   View({style:field},[TextInput({label:'Password',placeholder:'Password',type:'password',value:this.state.password,onChange:v=>{this.state.password=v;}})]),
+   Button({label:'Sign in',onClick:()=>{
+    const email=(this.state.email||'').trim();
+    if(!email||!this.state.password){s.setItem('polestar.login.status','Enter email and password');return;}
+    s.setItem('polestar.email',email);
+    s.setItem('polestar.login.status','Direct Polestar authentication is not yet available in this build.');
+    this.state.password='';
    }}),
-   Text({paragraph:true,style:{marginTop:'14px'}},s.getItem('direct.result')||'Not tested'),
-   Button({label:'Clear access token',onClick:()=>{s.removeItem('direct.token');s.setItem('direct.result','Token cleared');}})
+   Text({paragraph:true,style:{marginTop:'16px'}},s.getItem('polestar.login.status')||'Not connected')
   ]);
  }
 });
