@@ -4,7 +4,7 @@ import hmac
 import os
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
-from polestar_api.client import PolestarApi
+from polestar_api import PolestarApi
 
 app = FastAPI(title="Polestar Link Gateway", docs_url=None, redoc_url=None)
 LOCK = asyncio.Lock()
