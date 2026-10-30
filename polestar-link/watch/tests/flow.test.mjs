@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import * as proto from '../app-side/proto.js';
+import * as webtext from '../app-side/grpc-web-text.js';
 
 const vin='YSMABCDE0R0000001';
 const wrap=(name,props={},children=[])=>({name,props,children});
@@ -40,6 +41,11 @@ function launch(startImmediately=true,options={}){
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
    assert.equal(typeof body,'string');
+   if(headers['Content-Type']==='application/grpc-web-text+proto'){
+    if(!options.webTextWorks)return {status:415,headers:{'Content-Type':'text/plain'},body:'unsupported'};
+    const payload=proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]));
+    return {status:200,headers:{'Content-Type':'application/grpc-web-text'},body:webtext.toBase64(payload)};
+   }
    if(url.endsWith('/GetMyCars')){
     if(!options.c3Cars)return {status:503,body:''};
     const str=value=>[...String(value)].map(ch=>ch.charCodeAt(0));
@@ -58,7 +64,7 @@ function launch(startImmediately=true,options={}){
  }
  const sideCode=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const settingsCode=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
- const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,
+ const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,...webtext,
   authenticatePolestar:async(email,password)=>{
    logins++;
    assert.equal(email,'driver@example.test');
