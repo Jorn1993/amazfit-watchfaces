@@ -265,12 +265,18 @@ function grpcStatus(r){
  const h=header(r,'grpc-status');
  if(h!=='' && String(h)!=='0')throw Error('Polestar gRPC status '+h);
 }
-async function grpc(method,vin){
+async function grpc(method,vin,options={}){
  const host=store().getItem('polestar.c3'),token=await accessToken();
  if(!host||!vin)throw Error('Connect to your Polestar in Zepp first');
- const command=method==='Lock'?'lock':method==='Unlock'?'unlock':null;
+ const controlMethods={
+  Lock:'lock',Unlock:'unlock',TrunkUnlock:'trunk_unlock',
+  Flash:'flash',Honk:'honk',HonkFlash:'honk_flash',
+  WindowsOpen:'windows_open',WindowsClose:'windows_close',
+  ClimateStart:'climate_start',ClimateStop:'climate_stop'
+ };
+ const command=controlMethods[method]||null;
  const requestId='zepp-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*0x100000000).toString(36);
- const invocation=command?encodeC3Action(vin,command):null;
+ const invocation=command?encodeC3Action(vin,command,options):null;
  const request=grpcFrame(invocation?invocation.payload:requestFor(vin,false,requestId));
  const path=invocation?invocation.path:
   method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':
@@ -572,6 +578,16 @@ AppSideService(BaseSideService({
    if(req.method==='zepp.ping'){
     res(null,{ok:true,version:'1.3.20-verification-status',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
+   if(req.method==='vehicle.capabilities'){
+    res(null,{ok:true,authenticated:!!store().getItem('polestar.access'),
+     vehicle_configured:!!store().getItem('vehicle.vin'),
+     native_verified:store().getItem('vehicle.verified')==='true',
+     controls:['lock','unlock','trunk_unlock','flash','honk','honk_flash',
+      'windows_open','windows_close','climate_start','climate_stop'],
+     // Capability presence is not proof of native transport support.
+     control_transport:store().getItem('vehicle.verified')==='true'?'candidate':'unavailable'});
+    return;
+   }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
    if(req.method==='vehicle.status'){
@@ -586,20 +602,34 @@ AppSideService(BaseSideService({
    }
    if(req.method==='vehicle.command'){
     const p=req.params||{};
-    if(p.confirmed!==true||!['lock','unlock'].includes(p.action))throw Error('Confirmation required');
-    if(store().getItem('vehicle.verified')!=='true')throw Error('Verify vehicle status before lock/unlock');
-    const method=p.action==='lock'?'Lock':'Unlock';
-    const result=await grpc(method,vin);
+    const allowed={
+     lock:'Lock',unlock:'Unlock',trunk_unlock:'TrunkUnlock',
+     flash:'Flash',honk:'Honk',honk_flash:'HonkFlash',
+     windows_open:'WindowsOpen',windows_close:'WindowsClose',
+     climate_start:'ClimateStart',climate_stop:'ClimateStop'
+    };
+    if(p.confirmed!==true||!Object.prototype.hasOwnProperty.call(allowed,p.action))
+     throw Error('Confirmation required for a supported C3 action');
+    if(store().getItem('vehicle.verified')!=='true')
+     throw Error('Verify live C3 status before any command');
+    const method=allowed[p.action];
+    const result=await grpc(method,vin,p.options||{});
+    if(!result.complete)
+     throw Error('C3 command completion status is unavailable');
     const invocation=decodeInvocation(result.payload);
     if(!invocation.ok){
      res(null,{ok:false,error:'Polestar '+method+': '+invocation.status_label});return;
     }
-    // A terminal RPC SUCCESS means accepted, not necessarily that the door
-    // lock state changed. Do not report success without a fresh state read.
+    // Only lock/unlock can currently be independently verified through our
+    // existing exterior decoder. Never mark other commands as verified.
+    if(p.action!=='lock'&&p.action!=='unlock'){
+     res(null,{ok:false,pending:true,error:'C3 acknowledged '+method+
+      '; physical result is not yet verified.'});return;
+    }
     let observed='unknown';
     try{
      const ext=await grpc('GetLatestExterior',vin);
-     observed=decodeExterior(ext.payload).lock_state;
+     if(ext.complete)observed=decodeExterior(ext.payload).lock_state;
     }catch(e){}
     if(observed!==(p.action==='lock'?'locked':'unlocked')){
      res(null,{ok:false,pending:true,error:'Command acknowledged, but car state not verified. Refresh status.'});return;
