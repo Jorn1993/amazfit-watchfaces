@@ -22,13 +22,12 @@ async function checkSettingsBrowser(s){
  s.setItem('polestar.browser.probe.result',JSON.stringify(result));
  s.setItem('polestar.browser.probe.status','Browser login networking check completed.');
 }
+let loginEmail='';
+let loginPassword='';
 AppSettingsPage({
  build(props){
   const s=props.settingsStorage;
-  // Delete unsafe credential messages from earlier experimental releases.
-  for(const key of ['polestar.login.request','polestar.login.request.at']){
-   if(s.getItem(key))s.removeItem(key);
-  }
+  // Credentials enter Settings through input handlers, not through logs.
   const session=!!s.getItem('polestar.access')&&!!s.getItem('vehicle.vin')&&!!s.getItem('polestar.c3');
   let report={};
   try{report=JSON.parse(s.getItem('polestar.probe.result')||'{}');}catch(e){}
@@ -73,7 +72,35 @@ AppSettingsPage({
     Text({paragraph:true},'Vehicle gRPC and commands: NOT verified'),
     report.auth_error?Text({paragraph:true,style:{color:'#a23838'}},report.auth_error):Text({},''),
     report.grpc_error?Text({paragraph:true,style:{color:'#a23838'}},report.grpc_error):Text({},''),
-    Text({bold:true,style:{marginTop:'20px'}},'Polestar account'),
+    Text({bold:true,style:{marginTop:'20px'}},'Connect your Polestar account'),
+    Text({paragraph:true},'Personal experimental login using Polestar ID. Your password is cleared from the form after submission.'),
+    TextInput({label:'Polestar email',value:loginEmail||s.getItem('polestar.email')||'',
+      placeholder:'you@example.com',onChange:value=>{loginEmail=String(value||'');},
+      subStyle:{borderRadius:'8px',padding:'12px',background:'#eef2f3'}}),
+    TextInput({label:'Polestar password',value:loginPassword,
+      placeholder:'Password',onChange:value=>{loginPassword=String(value||'');},
+      subStyle:{WebkitTextSecurity:'disc',webkitTextSecurity:'disc',
+       borderRadius:'8px',padding:'12px',background:'#eef2f3'}}),
+    Button({label:'Sign in to Polestar',style:{
+      borderRadius:'12px',padding:'12px',background:'#245d53',color:'#ffffff'
+     },onClick:()=>{
+      const email=(loginEmail||s.getItem('polestar.email')||'').trim();
+      const password=loginPassword;
+      if(!email||!password){
+       s.setItem('polestar.login.status','ERROR: Enter email and password');
+       return;
+      }
+      // Zepp Settings <-> Side Service offers only shared settingsStorage.
+      // Use a one-shot request and erase it immediately on the phone side.
+      s.setItem('polestar.email',email);
+      s.setItem('polestar.login.status','AUTH: Connecting to Polestar ID…');
+      s.setItem('polestar.login.request.at',String(Date.now()));
+      s.setItem('polestar.login.request',JSON.stringify({email,password}));
+      loginPassword='';
+     }}),
+    Text({paragraph:true},s.getItem('polestar.login.status')||'Not connected'),
+    Text({paragraph:true,style:{fontSize:'12px',color:'#777777'}},
+      'Personal-use build. Zepp temporarily transfers login details through its local settings storage; do not use on a shared phone. Login may fail if Polestar redirects cannot be captured.'),
     Link({source:'https://www.polestar.com/nl-be/'},
       Text({bold:true},'Open official Polestar site')),
     Text({paragraph:true},
@@ -104,22 +131,8 @@ AppSettingsPage({
       'Existing Polestar app sign-in: not shared with Zepp. No account or password is accessed by this test.'),
     Text({paragraph:true,style:{color:'#666666',fontSize:'12px'}},
       'Cookie forwarding uses only a dummy value sent to httpbin.org, never a real Polestar session.'),
-    Text({paragraph:true,style:{marginTop:'24px',color:'#666666'}},
-      'Password field safety preview (not a real password). It should show dots, not Demo123!:'),
-    TextInput({
-      label:'Masking test only',
-      value:'Demo123!',
-      disabled:true,
-      subStyle:{
-       WebkitTextSecurity:'disc',
-       webkitTextSecurity:'disc',
-       borderRadius:'8px',
-       padding:'10px',
-       background:'#eef2f3'
-      }
-    }),
-    Text({paragraph:true,style:{fontSize:'12px',marginTop:'12px',color:'#777777'}},
-      'Do not enter your Polestar password here. The watch can communicate with Zepp; secure Polestar authorization remains under development.')
+    Text({paragraph:true,style:{marginTop:'16px',color:'#777777'}},
+      'The old demo password field is replaced with real account login. Vehicle commands are still experimental.')
    );
   }
   return View({style:{padding:'22px',background:'#ffffff'}},content);
