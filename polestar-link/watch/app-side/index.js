@@ -58,6 +58,39 @@ async function authorizationPreflight(){
   binary_transport:'not tested'
  };
 }
+// Credential-free gRPC network feasibility test. Sends an empty protobuf frame
+// without a VIN, access token or vehicle action. UNAUTHENTICATED is expected;
+// the result says only whether Zepp can reach the C3 service over its HTTP stack.
+async function grpcTransportPreflight(){
+ const discovery=await http('https://cnepmob.volvocars.com/','GET',{
+   Accept:'application/volvo.cloud.cnepmob.v1+json'
+ });
+ const info=json(discovery);
+ if(discovery.status!==200||!info||!info.c3||!info.c3.grpcHost)
+  throw Error('C3 discovery HTTP '+discovery.status);
+ const host=info.c3.grpcHost;
+ if(!/^[a-z0-9.-]+$/i.test(host))throw Error('Invalid C3 host');
+ try{
+  const r=await http('https://'+host+'/services.vehiclestates.battery.BatteryService/GetLatestBattery','POST',{
+   'Content-Type':'application/grpc',
+   'TE':'trailers',
+   'grpc-accept-encoding':'identity'
+  },String.fromCharCode(0,0,0,0,0));
+  return {
+   discovery_http:discovery.status,
+   grpc_http:r.status,
+   grpc_status:String(header(r,'grpc-status')||'unavailable').slice(0,15),
+   grpc_content_type:String(header(r,'content-type')||'not exposed').split(';')[0].slice(0,40),
+   grpc_body_type:ArrayBuffer.isView(r.body)?'bytes':typeof r.body,
+   // HTTP 401/403 or gRPC status 16 is a legitimate unauthenticated result.
+   grpc_reached:r.status===401||r.status===403||
+      (r.status===200&&/grpc/i.test(String(header(r,'content-type'))))
+  };
+ }catch(e){
+  return {discovery_http:discovery.status,grpc_reached:false,
+    error:String(e&&e.message||e).slice(0,100)};
+ }
+}
 async function accessToken(){
  const token=store().getItem('polestar.access');
  if(!token)throw Error('Sign in using Zepp first');
@@ -168,6 +201,9 @@ AppSideService(BaseSideService({
  },
  async onRequest(req,res){
   try{
+   if(req.method==='grpc.preflight'){
+    res(null,{ok:true,...await grpcTransportPreflight()});return;
+   }
    if(req.method==='auth.preflight'){
     res(null,{ok:true,...await authorizationPreflight()});return;
    }
