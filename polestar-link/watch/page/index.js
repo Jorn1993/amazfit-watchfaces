@@ -4,7 +4,7 @@ Page(BasePage({
  build(){
   this.busy=false;this.disposed=false;this.pending=null;
   ui.createWidget(ui.widget.TEXT,{x:55,y:56,w:370,h:48,text:'POLESTAR LINK',text_size:30,color:0xffffff,align_h:ui.align.CENTER_H});
-  this.result=ui.createWidget(ui.widget.TEXT,{x:48,y:124,w:384,h:110,text:'Configure your private connection in Zepp',text_size:21,color:0xa9d9d3,text_style:ui.text_style.WRAP,align_h:ui.align.CENTER_H});
+  this.result=ui.createWidget(ui.widget.TEXT,{x:48,y:124,w:384,h:110,text:'Open Zepp to connect your Polestar',text_size:21,color:0xa9d9d3,text_style:ui.text_style.WRAP,align_h:ui.align.CENTER_H});
   ui.createWidget(ui.widget.BUTTON,{x:65,y:252,w:160,h:66,radius:22,normal_color:0x225b4d,press_color:0x307966,text:'LOCK',text_size:25,color:0xffffff,click_func:()=>this.arm('lock')});
   ui.createWidget(ui.widget.BUTTON,{x:255,y:252,w:160,h:66,radius:22,normal_color:0x674b3b,press_color:0x936a52,text:'UNLOCK',text_size:25,color:0xffffff,click_func:()=>this.arm('unlock')});
   ui.createWidget(ui.widget.BUTTON,{x:110,y:352,w:260,h:62,radius:20,normal_color:0x264059,press_color:0x365b7d,text:'STATUS / CONFIRM',text_size:18,color:0xffffff,click_func:()=>this.action()});
@@ -17,7 +17,7 @@ Page(BasePage({
    if(this.pending && Date.now()<=this.pending.expires){
      const action=this.pending.action;this.pending=null;this.show('Sending '+action+'…');
      const r=await this.request({method:'vehicle.command',params:{action,confirmed:true}},{timeout:60000});
-     this.show(r&&r.ok?'Request submitted\nRefresh status to verify':(r&&r.error)||'Command failed');
+     this.show(r&&r.ok?'Command sent\nRefresh status to verify':(r&&r.error)||'Command failed');
    }else{
      this.pending=null;this.show('Fetching vehicle status…');
      const r=await this.request({method:'vehicle.status'},{timeout:60000});
