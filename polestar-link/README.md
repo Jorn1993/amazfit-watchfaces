@@ -1,20 +1,29 @@
-# Polestar Link — isolated prototype
+# Polestar Link — Zepp-only prototype
 
-This directory is an Amazfit Balance 2 diagnostic app. It tests watch ↔ Zepp phone-side ↔ Android localhost communication. **No Polestar vehicle commands or login are implemented.**
+**Version 0.2.0 — non-operational vehicle demo.**
 
-## Installation QR
+The Amazfit Balance 2 app contains a Lock/Unlock user interface and a Test Zepp button. The Zepp Android app hosts a Settings page and Side Service. **No separate Android APK, Home Assistant, Polestar credentials, or live vehicle-control endpoint is required for the demo.**
 
-The official Zepp developer QR requires `zeus preview` on the **watch source project**, with a developer account login. A normal QR encoding a `.zab` URL is not a working Zepp installation code.
+The Lock/Unlock buttons are deliberately inert and do not talk to a vehicle. The UI explains this. Never enter Polestar passwords or tokens into this prototype.
 
-```sh
-npm install -g @zeppos/zeus-cli
-cd polestar-link/watch
-npm install
-node prepare-icons.mjs
-zeus login
-zeus preview
-```
+## Layout
 
-Select the Balance 2 target and scan with Zepp → Developer Mode → + → Scan. The login/preview is interactive; GitHub Actions cannot automatically authenticate your Zepp account. If using a GitHub Codespace on Android, run these commands in the browser terminal, then display the QR on another screen (or save it as an image and try scanning via gallery if Zepp offers that option).
+- `watch/page/index.js` — safe watch UI
+- `watch/setting/index.js` — Zepp settings page
+- `watch/app-side/index.js` — Zepp-hosted side service, no vehicle network traffic
+- `watch/app.json` — manifest (setting + app-side registered)
+- `.github/workflows/polestar-link.yml` — standalone developer build and QR
 
-This branch is intentionally independent of both existing watchfaces.
+## Install
+
+The GitHub workflow builds a preview-mode `.zpk` and stores its QR and package in `polestar-link/public/` on the feature branch. To use the QR, open:
+
+https://github.com/Jorn1993/amazfit-watchfaces/blob/feature/polestar-link/polestar-link/public/install-qr.png?raw=true
+
+In Zepp, select Developer Mode > Scan. The QR will work only if the new build has finished successfully; check the package revision before retesting. No production release or merging to either watchface branch is intended.
+
+## Why remote lock/unlock is not yet implemented
+
+Zepp Settings UI and Side Service are documented, so the companion APK can be avoided. Polestar 4 uses undocumented third-party authentication/control endpoints. The app **must not ask for Polestar credentials or claim success** until sign-in, token storage, command authorization, and device-specific API behavior are independently validated. Live unlock must require an explicit confirmation and provide server acknowledgment and updated lock status.
+
+See https://docs.zepp.com/docs/guides/framework/app-settings/register/ and https://github.com/kildahldev/unofficial-polestar-api for background.
