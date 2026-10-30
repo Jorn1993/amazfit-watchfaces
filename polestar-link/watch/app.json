@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 38,
-      "name": "1.3.18"
+      "code": 39,
+      "name": "1.3.19"
     },
     "vender": "Personal prototype",
-    "description": "Simple Polestar connection and three-stage vehicle discovery",
+    "description": "Zepp native gRPC transport diagnosis and read-only gRPC-Web text fallback",
     "icon": "icon.png"
   },
   "permissions": [
