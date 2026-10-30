@@ -46,7 +46,7 @@ async function fetchMock({url,method,body}){
   }
   throw Error('Unexpected mocked network call '+url);
 }
-function launch(){
+function launch(startImmediately=true){
  const sideScript=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const settingScript=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
  let side,page;
@@ -58,7 +58,7 @@ function launch(){
    String,Number,Error,Promise,Array,Object,RegExp,console};
  vm.runInNewContext(sideScript,common,{filename:'app-side/index.js'});
  vm.runInNewContext(settingScript,common,{filename:'setting/index.js'});
- side.onInit();
+ if(startImmediately)side.onInit();
  return {side,page};
 }
 async function waitFor(testValue){
@@ -77,10 +77,10 @@ test('Zepp settings -> OAuth -> vehicle discovery -> watch status -> confirmed l
  inputs[1].props.onChange('dummy-secret');
  const signIn=components.find(x=>x.name==='Button'&&x.props.label==='Sign in');
  signIn.props.onClick();
- await waitFor(()=>storage.getItem('polestar.login.status').startsWith('Connected'));
+ await waitFor(()=>storage.getItem('polestar.login.status').startsWith('READY: Connected'));
  assert.equal(storage.getItem('vehicle.vin'),vin);
  assert.equal(storage.getItem('polestar.login.request'),'');
- assert.equal(storage.getItem('polestar.login.status'),'Connected: Polestar 4');
+ assert.equal(storage.getItem('polestar.login.status'),'READY: Connected: Polestar 4');
  let status=await ask(side,'vehicle.status');
  assert.deepEqual(JSON.parse(JSON.stringify(status)),{ok:true,battery_percent:84,range_km:382,charging:false,lock_state:'unlocked'});
  const denied=await ask(side,'vehicle.command',{action:'unlock'});
@@ -94,4 +94,35 @@ test('Zepp settings -> OAuth -> vehicle discovery -> watch status -> confirmed l
  assert.equal(unlock.ok,true);assert.equal(commands,2);
  status=await ask(side,'vehicle.status');assert.equal(status.lock_state,'unlocked');
  assert.doesNotMatch(storage.getItem('polestar.log'),/dummy-secret/);
+});
+
+test('Zepp sign-in queued before Side Service starts is not silently lost',async()=>{
+ storageMap.clear();listeners.length=0;
+ const {side,page}=launch(false);
+ const components=flatten(page.build({settingsStorage:storage}));
+ const inputs=components.filter(x=>x.name==='TextInput');
+ inputs[0].props.onChange('user@example.com');
+ inputs[1].props.onChange('not-a-real-password');
+ components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
+ assert.ok(storage.getItem('polestar.login.request'),'Pending login must remain until Side Service receives it');
+ assert.match(storage.getItem('polestar.login.status'),/Waiting for Zepp service/);
+ side.onInit();
+ await waitFor(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(storage.getItem('polestar.login.status'),'READY: Connected: Polestar 4');
+ assert.doesNotMatch(storage.getItem('polestar.log'),/not-a-real-password/);
+});
+test('stale login discarded rather than sending old password after Side Service wakes',async()=>{
+ storageMap.clear();listeners.length=0;
+ const {side,page}=launch(false);
+ const components=flatten(page.build({settingsStorage:storage}));
+ const inputs=components.filter(x=>x.name==='TextInput');
+ inputs[0].props.onChange('user@example.com');
+ inputs[1].props.onChange('transient-password');
+ components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
+ storageMap.set('polestar.login.request.at',String(Date.now()-121000));
+ side.onInit();
+ await waitFor(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
+ assert.match(storage.getItem('polestar.login.status'),/expired/);
+ assert.equal(storage.getItem('polestar.login.request'),'');
 });
