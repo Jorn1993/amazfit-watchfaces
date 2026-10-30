@@ -32,13 +32,17 @@ test('status bypasses app-local Promise bridge and uses Zepp BLE messaging direc
  page.request=()=>{throw Error('Legacy Page.request bridge must not be called');};
  page.messaging={async request(payload,options){
   called++;
-  assert.equal(payload.method,'zepp.ping');
-  assert.equal(options.timeout,10000);
-  return {ok:true,auth:false,status:'Not connected'};
+  if(payload.method==='zepp.ping'){
+    assert.equal(options.timeout,10000);
+    return {ok:true,auth:false,status:'Not connected'};
+  }
+  assert.equal(payload.method,'auth.preflight');
+  assert.equal(options.timeout,20000);
+  return {ok:true,auth_http:200,login_page:true,cookie_accessible:false};
  }};
  await page.action();
- assert.equal(called,1);
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Sign in using Zepp app/);
+ assert.equal(called,2);
+ assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Session cookies: not available/);
  assert.equal(page.busy,false);
 });
 test('phone service and watch messaging failures are displayed, not silently swallowed',async()=>{
@@ -53,6 +57,7 @@ test('confirmed commands cannot execute without user arming action',async()=>{
  page.messaging={async request(payload){
   calls.push(payload);
   if(payload.method==='zepp.ping')return {ok:true,auth:false};
+  if(payload.method==='auth.preflight')return {ok:true,auth_http:200,login_page:true,cookie_accessible:true};
   if(payload.method==='vehicle.command')return {ok:true};
   throw Error('Unexpected command');
  }};
