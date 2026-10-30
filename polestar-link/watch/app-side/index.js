@@ -78,6 +78,9 @@ async function grpc(method,vin){
  const r=await http('https://'+host+path,'POST',{'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,'vin':vin,'grpc-accept-encoding':'identity','User-Agent':'grpc-java-okhttp/1.68.2'},frame(payload));
  trace('GRPC',method+' HTTP '+r.status+' grpc-status '+header(r,'grpc-status'));
  if(r.status!==200)throw Error(method+' HTTP '+r.status);
+ const grpcStatus=header(r,'grpc-status');
+ if(grpcStatus==='')throw Error(method+' response lacks gRPC completion status; cannot verify success');
+ if(String(grpcStatus)!=='0')throw Error(method+' gRPC status '+grpcStatus);
  return {http:r.status,grpcStatus:header(r,'grpc-status'),body:r.body};
 }
 AppSideService(BaseSideService({
@@ -98,14 +101,14 @@ AppSideService(BaseSideService({
  },
  async onRequest(req,res){
   try{
-   if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.3.0'});return;}
+   if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.2.0-experimental'});return;}
    const vin=store().getItem('vehicle.vin');
-   if(req.method==='vehicle.status'){const result=await grpc('GetLatestBattery',vin);res(null,{ok:true,diagnostic:'gRPC HTTP '+result.http,rawResponseType:typeof result.body});return;}
+   if(req.method==='vehicle.status'){const result=await grpc('GetLatestBattery',vin);res(null,{ok:false,error:'gRPC response decoding for battery/range is not implemented'});return;}
    if(req.method==='vehicle.command'){
     const p=req.params||{};
     if(p.confirmed!==true||!['lock','unlock'].includes(p.action))throw Error('Confirmation required');
     const result=await grpc(p.action==='lock'?'Lock':'Unlock',vin);
-    res(null,{ok:true,diagnostic:'Command gRPC HTTP '+result.http+'; delivery unverified'});return;
+    res(null,{ok:false,error:'gRPC transport completed; vehicle command delivery is not verified'});return;
    }
    throw Error('Unknown request');
   }catch(e){res(null,{ok:false,error:String(e.message||e)});}
