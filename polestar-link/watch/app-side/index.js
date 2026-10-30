@@ -98,6 +98,40 @@ async function grpcTransportPreflight(){
     error:String(e&&e.message||e).slice(0,100)};
  }
 }
+// Credential-free header test: send only a FIXED, harmless dummy cookie
+// to a public echo service. Never send real Polestar credentials to it.
+async function syntheticCookiePreflight(){
+ const marker='zepp_probe_only',value='harmless';
+ const r=await http('https://httpbin.org/cookies','GET',{
+  'Cookie':marker+'='+value,
+  'Accept':'application/json',
+  'Cache-Control':'no-store'
+ });
+ const body=json(r);
+ return {cookie_echo_http:r.status,
+  cookie_header_forwarded:r.status===200 && !!body &&
+   !!body.cookies && body.cookies[marker]===value};
+}
+let loginProbeInFlight=false;
+async function processLoginTransportProbe(){
+ const s=store(),request=s.getItem('polestar.login.probe.request');
+ if(!request||loginProbeInFlight)return;
+ loginProbeInFlight=true;
+ s.removeItem('polestar.login.probe.request');
+ s.setItem('polestar.login.probe.status','Checking dummy cookie forwarding…');
+ const result={cookie_echo_http:null,cookie_header_forwarded:false,
+  cookie_echo_error:false};
+ try{
+  const probe=await syntheticCookiePreflight();
+  result.cookie_echo_http=probe.cookie_echo_http;
+  result.cookie_header_forwarded=probe.cookie_header_forwarded;
+ }catch(e){result.cookie_echo_error=true;}
+ finally{
+  s.setItem('polestar.login.probe.result',JSON.stringify(result));
+  s.setItem('polestar.login.probe.status','Login transport check completed.');
+  loginProbeInFlight=false;
+ }
+}
 async function accessToken(){
  const token=store().getItem('polestar.access');
  if(!token)throw Error('Sign in using Zepp first');
@@ -232,6 +266,8 @@ function receiveStorageChange({key}={}){
   void processOauthResult();
  }else if(key==='polestar.probe.request'){
   void processConnectionProbe();
+ }else if(key==='polestar.login.probe.request'){
+  void processLoginTransportProbe();
  }
 }
 AppSideService(BaseSideService({
@@ -243,11 +279,13 @@ AppSideService(BaseSideService({
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
   void processConnectionProbe();
+  void processLoginTransportProbe();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
   void processConnectionProbe();
+  void processLoginTransportProbe();
  },
  async onRequest(req,res){
   try{
@@ -257,8 +295,11 @@ AppSideService(BaseSideService({
    if(req.method==='auth.preflight'){
     res(null,{ok:true,...await authorizationPreflight()});return;
    }
+   if(req.method==='login.transport.preflight'){
+    res(null,{ok:true,...await syntheticCookiePreflight()});return;
+   }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.10-verified-state-diagnostics',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.11-login-feasibility',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
