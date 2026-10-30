@@ -1,87 +1,71 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-
-function makePage() {
- let page;
- const widgets=[];
- const ui={
-  widget:{TEXT:1,BUTTON:2},
-  prop:{TEXT:3},
-  align:{CENTER_H:1},
-  text_style:{WRAP:1},
-  createWidget(type,props){
-   const object={type,props,text:props.text,
-    setProperty(prop,text){assert.equal(prop,3);this.text=text;}};
-   widgets.push(object);
-   return object;
-  }
- };
+function makePage(){
+ let page;const widgets=[];
+ const ui={widget:{TEXT:1,BUTTON:2},prop:{TEXT:3},align:{CENTER_H:1},
+  text_style:{WRAP:1},createWidget(type,props){
+   const widget={type,props,text:props.text,
+    setProperty(key,value){assert.equal(key,3);this.text=value;}};
+   widgets.push(widget);return widget;
+  }};
  const code=readFileSync(new URL('../page/index.js',import.meta.url),'utf8')
   .replace(/^import .*;\s*$/gm,'');
- vm.runInNewContext(code,{ui,Page:object=>{page=object;},
-  BasePage:object=>object,Date,JSON,String,Error,Promise,console},
-  {filename:'page/index.js'});
+ vm.runInNewContext(code,{ui,Page:obj=>{page=obj;},BasePage:x=>x,
+  Date,JSON,String,Error,Promise,Math,console},{filename:'page/index.js'});
  page.build();
  return {page,widgets};
 }
-test('status bypasses app-local Promise bridge and uses Zepp BLE messaging directly',async()=>{
- const {page,widgets}=makePage();
- let called=0;
- page.request=()=>{throw Error('Legacy Page.request bridge must not be called');};
+test('Watch reads phone capabilities through direct Zepp messaging, not legacy bridge',async()=>{
+ const {page}=makePage();
+ page.request=()=>{throw Error('Legacy Page.request must not be called');};
+ const calls=[];
  page.messaging={async request(payload,options){
-  called++;
-  if(payload.method==='zepp.ping'){
-    assert.equal(options.timeout,10000);
-    return {ok:true,auth:false,status:'Not connected'};
-  }
-  assert.equal(options.timeout,20000);
-  if(payload.method==='auth.preflight')return {ok:true,auth_http:200,login_page:true,cookie_accessible:false};
-  assert.equal(payload.method,'grpc.preflight');
-  return {ok:true,grpc_reached:true};
+  calls.push([payload.method,options.timeout]);
+  if(payload.method==='vehicle.capabilities')
+   return {ok:true,authenticated:true,vehicle_configured:true,native_verified:false};
+  throw Error('Unexpected request');
  }};
- await page.action();
- assert.equal(called,3);
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Session cookies: not available/);
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/gRPC: unverified/);
+ await page.refresh();
+ assert.equal(calls.length,1);
+ assert.deepEqual(calls[0],['vehicle.capabilities',12000]);
+ assert.match(page.result.text,/communication unavailable/);
  assert.equal(page.busy,false);
 });
-test('phone service and watch messaging failures are displayed, not silently swallowed',async()=>{
- const {page,widgets}=makePage();
+test('Phone service errors are displayed on watch',async()=>{
+ const {page}=makePage();
  page.messaging={async request(){throw Error('BLE channel disconnected');}};
- await page.action();
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/BLE channel disconnected/);
+ await page.refresh();
+ assert.match(page.result.text,/BLE channel disconnected/);
 });
-test('confirmed commands cannot execute without user arming action',async()=>{
- const {page,widgets}=makePage();
- const calls=[];
+test('Physical commands are blocked unless native C3 is verified',async()=>{
+ const {page}=makePage();let commands=0;
+ page.messaging={async request(payload){
+  if(payload.method==='vehicle.capabilities')
+   return {ok:true,authenticated:true,vehicle_configured:true,native_verified:false};
+  if(payload.method==='vehicle.command')commands++;
+ }};
+ page.next();await page.arm('unlock');
+ await page.footerAction();
+ assert.equal(commands,0);
+ assert.match(page.result.text,/Remote controls unavailable|C3 controls require/);
+});
+test('Confirmed commands use Zepp messaging and never claim success before verification',async()=>{
+ const {page}=makePage();const calls=[];
  page.messaging={async request(payload){
   calls.push(payload);
-  if(payload.method==='zepp.ping')return {ok:true,auth:false};
-  if(payload.method==='auth.preflight')return {ok:true,auth_http:200,login_page:true,cookie_accessible:true};
-  if(payload.method==='grpc.preflight')return {ok:true,grpc_reached:false};
-  if(payload.method==='vehicle.command')return {ok:true,verified:true};
-  throw Error('Unexpected command');
+  if(payload.method==='vehicle.capabilities')
+   return {ok:true,authenticated:true,vehicle_configured:true,native_verified:true};
+  if(payload.method==='vehicle.command')
+   return {ok:false,pending:true,error:'Command acknowledged, but car state not verified.'};
  }};
- await page.action();
- assert.equal(calls.some(c=>c.method==='vehicle.command'),false);
- page.arm('unlock');
- await page.action();
- assert.equal(calls.find(c=>c.method==='vehicle.command').params.confirmed,true);
- assert.equal(calls.find(c=>c.method==='vehicle.command').params.action,'unlock');
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Car state confirmed/);
-});
-
-test('watch does not report a successful unlock until vehicle lock state is verified',async()=>{
- const {page,widgets}=makePage();
- page.messaging={async request(payload){
-  assert.equal(payload.method,'vehicle.command');
-  assert.equal(payload.params.action,'unlock');
-  assert.equal(payload.params.confirmed,true);
-  return {ok:false,pending:true,error:'Command acknowledged, but car state not verified. Refresh status.'};
- }};
- page.arm('unlock');
- await page.action();
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/state not verified/);
+ page.next();
+ await page.arm('unlock');
+ assert.equal(calls.some(x=>x.method==='vehicle.command'),false);
+ await page.footerAction();
+ const command=calls.find(x=>x.method==='vehicle.command');
+ assert.equal(command.params.confirmed,true);
+ assert.equal(command.params.action,'unlock');
+ assert.match(page.result.text,/state not verified/);
 });
