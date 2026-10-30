@@ -72,7 +72,7 @@ jobs:
                   assert manifest['app']['appType']=='app',manifest
                   assert manifest['packageInfo']['mode']=='preview',manifest
                   assert manifest['app']['version']['name']=='0.2.1',manifest
-                  assert manifest['targets']['balance2']['module']['setting']['path']=='setting/index',manifest
+                  assert manifest['module']['setting']['path']=='setting/index',manifest
           public=Path('polestar-link/public');public.mkdir(parents=True,exist_ok=True)
           (public/'polestar-link-v0.2.1.zpk').write_bytes(payload)
           url='zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-v0.2.1.zpk'
