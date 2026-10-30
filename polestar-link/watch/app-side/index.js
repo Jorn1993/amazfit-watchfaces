@@ -150,13 +150,58 @@ async function accessToken(){
  if(t.refresh_token)store().setItem('polestar.refresh',t.refresh_token);
  return t.access_token;
 }
+// The current mobile GraphQL list can be empty even while MyStar lists cars.
+// Query both authenticated APIs. Store *only* HTTP status and vehicle counts
+// in diagnostics: never serialize VINs, OAuth tokens, or response bodies.
 async function vehicles(token){
- const query='query GetVDMSCars { vdms { getVehiclesInformation { vin internalVehicleIdentifier registrationNo modelYear content { model { name } } } } }';
- const r=await http(GQL,'POST',{'Content-Type':'application/json','Accept':'application/json','X-PolestarId-Authorization':'Bearer '+token,'X-APOLLO-OPERATION-NAME':'GetVDMSCars','X-Polestar-Locale':'SE','X-Polestar-Force-Update-Version':'5.11.0','User-Agent':'PolestarApp/5.11.0b1111 Android/14'},JSON.stringify({operationName:'GetVDMSCars',variables:{},query,extensions:{clientLibrary:{name:'apollo-kotlin',version:'4.4.1'}}}));
- const data=json(r);
- if(r.status!==200||!data||data.errors)throw Error('Vehicle discovery HTTP '+r.status);
- const cars=(((data.data||{}).vdms||{}).getVehiclesInformation)||[];
- if(!cars.length)throw Error('No Polestar vehicles found');
+ const report={mobile_http:null,mobile_count:0,mobile_shape:'unknown',
+  consumer_v2_http:null,consumer_v2_count:0,consumer_v2_shape:'unknown'};
+ store().setItem('polestar.vehicle.lookup',JSON.stringify(report));
+ let cars=[];
+ try{
+  const query='query GetVDMSCars { vdms { getVehiclesInformation { vin internalVehicleIdentifier registrationNo modelYear content { model { name } } } } }';
+  const r=await http(GQL,'POST',{
+   'Content-Type':'application/json',
+   'Accept':'application/json',
+   'X-PolestarId-Authorization':'Bearer '+token,
+   'X-APOLLO-OPERATION-NAME':'GetVDMSCars',
+   'X-Polestar-Locale':'SE',
+   'X-Polestar-Force-Update-Version':'5.11.0',
+   'User-Agent':'PolestarApp/5.11.0b1111 Android/14'
+  },JSON.stringify({operationName:'GetVDMSCars',variables:{},query,
+    extensions:{clientLibrary:{name:'apollo-kotlin',version:'4.4.1'}}}));
+  report.mobile_http=r.status;
+  const payload=json(r);
+  const list=payload&&payload.data&&payload.data.vdms&&
+    payload.data.vdms.getVehiclesInformation;
+  report.mobile_shape=Array.isArray(list)?'array':payload&&payload.errors?'graphql_error':'missing_list';
+  if(r.status===200&&Array.isArray(list)){
+   cars=list.filter(car=>car&&typeof car.vin==='string'&&car.vin.length>=11);
+   report.mobile_count=cars.length;
+  }
+ }catch(e){report.mobile_shape='network_error';}
+ store().setItem('polestar.vehicle.lookup',JSON.stringify(report));
+ if(!cars.length){
+  // Polestar MyStar V2 account API, used by pypolestar/pypolestar.
+  try{
+   const query='query GetConsumerCarsV2 { getConsumerCarsV2 { vin internalVehicleIdentifier registrationNo modelYear modelName pno34 structureWeek } }';
+   const r=await http('https://pc-api.polestar.com/eu-north-1/mystar-v2/','POST',{
+    'Content-Type':'application/json','Accept':'application/json',
+    'Authorization':'Bearer '+token
+   },JSON.stringify({operationName:'GetConsumerCarsV2',variables:{},query}));
+   report.consumer_v2_http=r.status;
+   const data=json(r);
+   const list=data&&data.data&&data.data.getConsumerCarsV2;
+   report.consumer_v2_shape=Array.isArray(list)?'array':data&&data.errors?'graphql_error':'missing_list';
+   if(r.status===200&&Array.isArray(list)){
+    cars=list.filter(car=>car&&typeof car.vin==='string'&&car.vin.length>=11)
+      .map(car=>({vin:car.vin,content:{model:{name:car.modelName||'Polestar'}}}));
+    report.consumer_v2_count=cars.length;
+   }
+  }catch(e){report.consumer_v2_shape='network_error';}
+ }
+ store().setItem('polestar.vehicle.lookup',JSON.stringify(report));
+ if(!cars.length)throw Error('No cars returned by mobile/V2 APIs. Retry vehicle lookup.');
  store().setItem('vehicle.vin',cars[0].vin);
  store().setItem('vehicle.name',((cars[0].content||{}).model||{}).name||'Polestar');
  return cars[0];
@@ -244,6 +289,23 @@ async function processDirectLogin(){
   trace('ERROR',String(e&&e.message||'Login failed').slice(0,110));
  }finally{loginInFlight=false;}
 }
+let vehicleDiscoveryInFlight=false;
+async function retryVehicleDiscovery(){
+ if(vehicleDiscoveryInFlight||!store().getItem('polestar.access'))return;
+ vehicleDiscoveryInFlight=true;
+ try{
+  trace('AUTH','Looking up linked cars using mobile and MyStar V2 APIs');
+  const token=await accessToken();
+  const car=await vehicles(token);
+  await endpoint(token);
+  trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
+ }catch(e){
+  store().removeItem('vehicle.vin');
+  store().removeItem('vehicle.name');
+  store().removeItem('polestar.c3');
+  trace('AUTH','Account signed in. Vehicle lookup: '+String(e&&e.message||e).slice(0,100));
+ }finally{vehicleDiscoveryInFlight=false;}
+}
 let oauthInFlight=false;
 async function processOauthResult(){
  const raw=store().getItem('polestar.oauth.result');
@@ -263,11 +325,9 @@ async function processOauthResult(){
   store().setItem('polestar.expires.at',
     String(Date.now()+(Number(value.expires_in)||3600)*1000-60000));
   store().setItem('polestar.token.endpoint','https://polestarid.eu.polestar.com/as/token.oauth2');
-  trace('AUTH','Finding your Polestar');
-  const car=await vehicles(value.access_token);
-  trace('AUTH','Finding car connection');
-  await endpoint(value.access_token);
-  trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
+  // A successful token exchange proves login; car discovery is separate.
+  trace('AUTH','Account signed in. Searching for your Polestar…');
+  await retryVehicleDiscovery();
  }catch(e){
   // Never leave a token/VIN in a half-connected state after failed discovery.
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
@@ -281,11 +341,15 @@ function receiveStorageChange({key}={}){
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
    'polestar.c3','vehicle.vin','vehicle.name','polestar.token.endpoint',
    'polestar.oauth.result','polestar.oauth.result.at',
+   'polestar.vehicle.lookup','polestar.vehicle.discovery.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
  }else if(key==='polestar.oauth.result'){
   void processOauthResult();
+ }else if(key==='polestar.vehicle.discovery.request'){
+  store().removeItem('polestar.vehicle.discovery.request');
+  void retryVehicleDiscovery();
  }else if(key==='polestar.probe.request'){
   void processConnectionProbe();
  }else if(key==='polestar.login.probe.request'){
