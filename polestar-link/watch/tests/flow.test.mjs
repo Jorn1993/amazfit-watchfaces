@@ -202,26 +202,17 @@ test('Anonymous C3 gRPC probe does not require credentials or invoke vehicle com
  assert.equal('host' in response,false);
 });
 
-test('Zepp settings compatibility button runs both probes without password input',async()=>{
+test('Diagnostic network RPCs remain available without extra Settings buttons',async()=>{
  const {side,storage,page}=launch();
- const toggle=flatten(page.build({settingsStorage:storage}))
-  .find(x=>x.name==='Button'&&x.props.label==='Technical details');
- assert.ok(toggle);
- toggle.props.onClick();
- const button=flatten(page.build({settingsStorage:storage}))
-  .find(x=>x.name==='Button'&&x.props.label==='Run compatibility check');
- assert.ok(button);
- button.props.onClick();
- await eventually(()=>storage.getItem('polestar.probe.status')==='Polestar compatibility test completed.');
- const report=JSON.parse(storage.getItem('polestar.probe.result'));
- assert.equal(report.auth_http,200);
- assert.equal(report.login_page,true);
- assert.equal(report.cookie_accessible,true);
- assert.equal(report.grpc_reached,true);
- assert.equal(report.grpc_verified,false);
- assert.equal(report.pkce_secure_crypto,false,'Mock Zepp runtime does not expose WebCrypto');
+ const buttons=flatten(page.build({settingsStorage:storage}))
+  .filter(x=>x.name==='Button').map(x=>x.props.label);
+ assert.deepEqual(buttons,['Connect to Polestar']);
+ const auth=await ask(side,'auth.preflight');
+ assert.equal(auth.ok,true);
+ const grpc=await ask(side,'grpc.preflight');
+ assert.equal(grpc.ok,true);
+ assert.equal(grpc.grpc_verified,false);
  assert.equal(storage.getItem('polestar.login.request'),'');
- assert.equal(storage.getItem('polestar.access'),'');
 });
 
 test('Successful command RPC without matching exterior state is pending, not success',async()=>{
@@ -291,19 +282,16 @@ test('MyStar fallback errors show safe status without leaking vehicle details',a
  assert.doesNotMatch(JSON.stringify(report),/mock-token/);
 });
 
-test('Compact Settings hides diagnostic probes and exposes one primary action',async()=>{
+test('Compact Settings shows exactly one primary login button and no dynamic diagnostics toggle',async()=>{
  const {storage,side,page,getCommands}=launch();
- let ui=flatten(page.build({settingsStorage:storage}));
- const buttons=ui.filter(x=>x.name==='Button').map(x=>x.props.label);
- assert.deepEqual(buttons,['Connect to Polestar','Technical details']);
+ const ui=flatten(page.build({settingsStorage:storage}));
+ assert.deepEqual(ui.filter(x=>x.name==='Button').map(x=>x.props.label),['Connect to Polestar']);
  assert.equal(ui.filter(x=>x.name==='TextInput').length,2);
  const response=await ask(side,'login.transport.preflight');
  assert.equal(response.cookie_header_forwarded,true);
  assert.equal(getCommands(),0);
- ui.find(x=>x.name==='Button'&&x.props.label==='Technical details').props.onClick();
- const advanced=flatten(page.build({settingsStorage:storage}));
- assert.ok(advanced.some(x=>x.name==='Button'&&x.props.label==='Run compatibility check'));
 });
+
 test('Credentials are only submitted on explicit sign-in',async()=>{
  const {storage,page,getLogins,getCommands}=launch();
  const controls=flatten(page.build({settingsStorage:storage}));
@@ -390,9 +378,11 @@ test('Secondary-car VIN entry remains unverified if Zepp cannot read gRPC bytes'
  assert.ok(field);
  field.props.onChange(vin);
  ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
- await eventually(()=>storage.getItem('polestar.login.status').includes('VIN configured'));
+ await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
  assert.equal(storage.getItem('vehicle.vin'),vin);
  assert.equal(storage.getItem('vehicle.verified'),'');
+ const probe=JSON.parse(storage.getItem('polestar.webtext.probe'));
+ assert.equal(probe.result,'http_error');
  const command=await ask(side,'vehicle.command',{action:'unlock',confirmed:true});
  assert.equal(command.ok,false);
  assert.match(command.error,/Verify vehicle status/);
@@ -420,7 +410,7 @@ test('Native binary failure probes read-only Web text and keeps lock blocked',as
   const ui=flatten(page.build({settingsStorage:storage}));
   ui.find(x=>x.name==='TextInput'&&x.props.label==='Vehicle VIN (optional)').props.onChange(vin);
   ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
-  await eventually(()=>storage.getItem('polestar.login.status').includes('VIN configured'));
+  await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
   flatten(page.build({settingsStorage:storage}))
    .find(x=>x.name==='Button'&&x.props.label==='Verify vehicle connection').props.onClick();
   await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
@@ -446,4 +436,24 @@ test('Settings view wraps each control in its own vertically stacked block',()=>
   assert.equal(item.props.style.display,'block');
   assert.equal(item.children.length,1);
  }
+});
+
+test('VIN entry automatically runs text transport diagnostic and exposes a result',async()=>{
+ const {storage,page,getCommands}=launch(true,{noCars:true,grpcBinaryBlocked:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
+ await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
+ const controls=flatten(page.build({settingsStorage:storage}));
+ controls.find(x=>x.name==='TextInput'&&x.props.label==='Vehicle VIN (optional)').props.onChange(vin);
+ controls.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
+ await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
+ const report=JSON.parse(storage.getItem('polestar.webtext.probe'));
+ assert.equal(report.http,415);
+ assert.equal(report.result,'http_error');
+ assert.equal(storage.getItem('polestar.vehicle.verify.status'),'text_http_error');
+ const shown=flatten(page.build({settingsStorage:storage}));
+ const text=shown.filter(x=>x.name==='Text').map(x=>x.children.join(' ')).join(' | ');
+ assert.match(text,/gRPC-Web text: HTTP 415/);
+ assert.equal(storage.getItem('vehicle.verified'),'');
+ assert.equal(getCommands(),0);
 });
