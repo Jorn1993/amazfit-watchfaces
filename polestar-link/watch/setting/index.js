@@ -56,14 +56,17 @@ AppSettingsPage({
    add(Text({paragraph:true,style:muted},
     'Your password is used only for sign-in. Leave it blank to try an existing Polestar session.'));
    add(Button({label:'Connect to Polestar',style:buttonMain,onClick:()=>{
-    if(!/^\S+@\S+\.\S+$/.test(email)){
+    // Zepp's TextInput editor may update after this page was built.
+    // Read the current value here; never use a stale render-time variable.
+    const currentEmail=(loginEmail||s.getItem('polestar.email')||'').trim();
+    if(!/^\S+@\S+\.\S+$/.test(currentEmail)){
      s.setItem('polestar.login.status','ERROR: Enter your Polestar email');
      return;
     }
-    s.setItem('polestar.email',email);
+    s.setItem('polestar.email',currentEmail);
     s.setItem('polestar.login.status','AUTH: Connecting securely…');
     s.setItem('polestar.login.request.at',String(Date.now()));
-    s.setItem('polestar.login.request',JSON.stringify({email,password:loginPassword}));
+    s.setItem('polestar.login.request',JSON.stringify({email:currentEmail,password:loginPassword}));
     loginPassword='';
     s.removeItem('polestar.ui.password.changed');
    }}));
