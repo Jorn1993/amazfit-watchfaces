@@ -11,6 +11,7 @@ const Text=(props,value)=>wrap('Text',props,[value]);
 const Button=props=>wrap('Button',props);
 const Auth=props=>wrap('Auth',props);
 const TextInput=props=>wrap('TextInput',props);
+const Link=(props,children)=>wrap('Link',props,children);
 function flatten(tree){return [tree,...(tree.children||[]).flatMap(c=>typeof c==='object'?flatten(c):[])];}
 function msg(id,body){return Uint8Array.from([id*8+2,body.length,...body]);}
 function num(id,value){return [id*8,value];}
@@ -58,7 +59,7 @@ function launch(startImmediately=true,options={}){
     arg.onInit?.call(this);
    }
   }),
-  AppSettingsPage:arg=>{page=arg;},View,Text,Button,Auth,TextInput,
+  AppSettingsPage:arg=>{page=arg;},View,Text,Button,Auth,TextInput,Link,
   URL,Date,Math,JSON,ArrayBuffer,Uint8Array,TextDecoder,encodeURIComponent,decodeURIComponent,
   String,Number,Error,Promise,Array,Object,RegExp,console};
  vm.runInNewContext(sideCode,common,{filename:'app-side/index.js'});
@@ -247,4 +248,15 @@ test('Browser login probe cannot take credentials from a Settings input',()=>{
  assert.equal(input.length,1);
  assert.equal(input[0].props.disabled,true,'Password field stays an inert masking preview');
  assert.equal(controls.some(x=>x.name==='Auth'),false,'Do not enable rejected Zepp OAuth callback');
+});
+
+test('Official Polestar website link is present but does not claim to connect watch',()=>{
+ const {storage,page}=launch();
+ const widgets=flatten(page.build({settingsStorage:storage}));
+ const links=widgets.filter(x=>x.name==='Link');
+ assert.equal(links.length,1);
+ assert.equal(links[0].props.source,'https://www.polestar.com/nl-be/');
+ const title=widgets.filter(x=>x.name==='Text').flatMap(x=>x.children.map(String)).join(' ');
+ assert.match(title,/website session is separate from the watch app/);
+ assert.equal(storage.getItem('polestar.access'),'');
 });
