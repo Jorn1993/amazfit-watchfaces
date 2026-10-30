@@ -232,3 +232,56 @@ test('Reject malformed resumePath in official redirect',async()=>{
  );
  assert.equal(trace.length,1);
 });
+
+
+test('Existing Polestar session returns mobile callback and exchanges code without submitting password',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ let callbackReceived=false,credentialPosts=0;
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?')){
+   await baseline(url,method,headers,body); // Set the identity provider's state.
+   const state=new URL(url).searchParams.get('state');
+   callbackReceived=true;
+   return {status:302,headers:{Location:
+    'polestar-explore://explore.polestar.com?code=mock-code&state='+state}};
+  }
+  if(method==='POST'&&url.split('?')[0]!==ID+'/as/token.oauth2')credentialPosts++;
+  return baseline(url,method,headers,body);
+ };
+ const result=await authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto);
+ assert.equal(result.access_token,'mock-token');
+ assert.equal(callbackReceived,true);
+ assert.equal(credentialPosts,0,'Existing authorized session must not repost password');
+ assert.deepEqual(trace.map(x=>x.method),['GET','GET','POST']);
+});
+
+test('Reject existing-session callback with missing or mismatched state before token exchange',async()=>{
+ for(const suffix of ['?code=mock-code','?code=mock-code&state=attacker']){
+  const {http:baseline,trace}=fakeTransport();
+  const http=async(url,method='GET',headers={},body)=>{
+   if(url.startsWith(ID+'/as/authorization.oauth2?'))
+    return {status:302,headers:{Location:'polestar-explore://explore.polestar.com'+suffix}};
+   return baseline(url,method,headers,body);
+  };
+  await assert.rejects(
+   authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+   /state missing or mismatched/
+  );
+  assert.equal(trace.length,1,'No password POST or token exchange on invalid callback');
+ }
+});
+
+test('Existing-session callback without code is not mistaken for an authenticated account',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(url,...rest)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?'))
+   return {status:302,headers:{Location:
+    'polestar-explore://explore.polestar.com?state='+new URL(url).searchParams.get('state')}};
+  return baseline(url,...rest);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /did not return an authorization code/
+ );
+ assert.equal(trace.length,1,'No credential submission for incomplete app callback');
+});
