@@ -1,0 +1,77 @@
+name: Build Polestar Link and QR
+on:
+  push:
+    branches:
+      - feature/polestar-link
+    paths:
+      - 'polestar-link/watch/**'
+      - '.github/workflows/polestar-link.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: polestar-link-build
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install toolchain and QR generator
+        run: |
+          python -m pip install qrcode[pil]
+          npm install --prefix zeus-cli @zeppos/zeus-cli@1.9.3
+          ln -s @zeppos/zeus-cli/private-modules/zeppos-app-utils zeus-cli/node_modules/zeppos-app-utils
+          npm install --prefix polestar-link/watch
+      - name: Create icon and build app
+        run: |
+          node polestar-link/watch/prepare-icons.mjs
+          (cd polestar-link/watch && ../../zeus-cli/node_modules/.bin/zeus build)
+      - name: Extract ZPK and create installation QR
+        run: |
+          python - <<'PY'
+          import zipfile,io,json,qrcode
+          from pathlib import Path
+          dist=Path('polestar-link/watch/dist')
+          builds=sorted(dist.glob('*.zab'),key=lambda x:x.stat().st_mtime)
+          if not builds: raise RuntimeError('Zeus did not produce .zab')
+          with zipfile.ZipFile(builds[-1]) as z:
+              names=[n for n in z.namelist() if n.endswith('.zpk')]
+              if not names: raise RuntimeError('ZAB missing ZPK')
+              payload=z.read(names[0])
+          with zipfile.ZipFile(io.BytesIO(payload)) as z:
+              assert 'device.zip' in z.namelist(),'Invalid ZPK'
+              with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
+                  manifest=json.loads(d.read('app.json'))
+                  assert manifest['app']['appId']==1098347,manifest
+                  assert manifest['app']['appType']=='app',manifest
+          public=Path('polestar-link/public');public.mkdir(parents=True,exist_ok=True)
+          (public/'polestar-link.zpk').write_bytes(payload)
+          url='zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link.zpk'
+          qr=qrcode.make(url)
+          qr.save(public/'install-qr.png')
+          (public/'install-url.txt').write_text(url+'\n')
+          print('Created package',len(payload),'bytes; QR payload:',url)
+          PY
+      - name: Commit compiled developer build and QR to isolated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add polestar-link/public/
+          if ! git diff --cached --quiet; then
+            git commit -m "build(polestar): publish developer ZPK and QR [skip ci]"
+            git push origin HEAD:feature/polestar-link
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polestar-link-developer-build
+          path: polestar-link/public/
