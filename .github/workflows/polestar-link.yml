@@ -57,6 +57,12 @@ jobs:
               names=[n for n in z.namelist() if n.endswith('.zpk')]
               if not names: raise RuntimeError('ZAB missing ZPK')
               payload=z.read(names[0])
+          with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+              entries=archive.namelist()
+              print('PACKAGE COMPONENTS:',[(n,archive.getinfo(n).file_size) for n in entries])
+              assert 'device.zip' in entries,'No watch component'
+              phone_entries=[n for n in entries if 'side' in n.lower() or 'setting' in n.lower() or 'phone' in n.lower()]
+              print('PHONE/SERVICE COMPONENTS:',phone_entries)
           # Zepp developer Scan only accepts preview-mode packages.
           with zipfile.ZipFile(io.BytesIO(payload)) as outer:
               contents={n:outer.read(n) for n in outer.namelist()}
