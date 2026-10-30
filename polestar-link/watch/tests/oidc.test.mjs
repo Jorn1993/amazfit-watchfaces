@@ -285,3 +285,31 @@ test('Existing-session callback without code is not mistaken for an authenticate
  );
  assert.equal(trace.length,1,'No credential submission for incomplete app callback');
 });
+
+
+test('Existing-session callback can obtain token with no password',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?')){
+   await baseline(url,method,headers,body);
+   return {status:302,headers:{Location:
+    'polestar-explore://explore.polestar.com?code=mock-code&state='+
+      new URL(url).searchParams.get('state')}};
+  }
+  if(method==='POST'&&url.split('?')[0]!==ID+'/as/token.oauth2')
+   throw Error('Existing-session auth must never send a password');
+  return baseline(url,method,headers,body);
+ };
+ const session=await authenticatePolestar('nobody@example.invalid','',http,webcrypto);
+ assert.equal(session.access_token,'mock-token');
+ assert.deepEqual(trace.map(x=>x.method),['GET','GET','POST']);
+});
+
+test('No existing session and no password yields useful error before credential POST',async()=>{
+ const {http,trace}=fakeTransport();
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','',http,webcrypto),
+  /No active Polestar login session/
+ );
+ assert.deepEqual(trace.map(x=>x.method),['GET','GET']);
+});
