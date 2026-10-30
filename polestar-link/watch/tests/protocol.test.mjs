@@ -15,7 +15,10 @@ test('VIN protobuf and lock envelope use correct fields',()=>{
   assert.equal(encodeVin(vin).length,19);
   const outer=fields(requestFor(vin,true));
   assert.equal(fields(outer[1])[1].length,17);
-  assert.equal(requestFor(vin,false)[0],10);
+  const read=fields(requestFor(vin,false,'zepp-test-12345'));
+  assert.equal(String.fromCharCode(...read[1]),'zepp-test-12345');
+  assert.equal(String.fromCharCode(...read[2]),vin);
+  assert.throws(()=>requestFor(vin,false),/request ID required/);
   assert.throws(()=>encodeVin('not-a-vin'),/VIN invalid/);
 });
 test('gRPC frame round-trip and corrupt frame rejection',()=>{
