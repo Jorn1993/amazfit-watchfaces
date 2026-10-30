@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 15,
-      "name": "0.9.3"
+      "code": 16,
+      "name": "1.0.0"
     },
     "vender": "Personal prototype",
-    "description": "Polestar Link account and network prototype",
+    "description": "Polestar 4 status and lock/unlock through private HTTPS connector",
     "icon": "icon.png"
   },
   "permissions": [
