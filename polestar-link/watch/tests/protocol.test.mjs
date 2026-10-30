@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grpcFrame, grpcPayload, grpcMessages, encodeVin, requestFor, decodeBattery, decodeExterior, decodeInvocation, fields, bytes } from '../app-side/proto.js';
+import { grpcFrame, grpcPayload, grpcMessages, encodeVin, requestFor, decodeBattery, decodeExterior, decodeInvocation, decodeMyCars, fields, bytes } from '../app-side/proto.js';
 
 const vin='YSMABCDE0R0000001';
 function varint(n) {const a=[]; do{const b=n&127;n=Math.floor(n/128);a.push(n?b|128:b);}while(n);return a;}
@@ -50,4 +50,14 @@ test('streamed command responses preserve final success',()=>{
  assert.deepEqual(messages.map(m=>decodeInvocation(m).status),[1,4,6]);
  assert.equal(decodeInvocation(messages[messages.length-1]).ok,true);
  assert.throws(()=>grpcMessages(stream.slice(0,-1)),/Truncated/);
+});
+
+test('C3 GetMyCars parses repeated linked vehicles and ignores invalid VINs',()=>{
+ const text=value=>Array.from(value,ch=>ch.charCodeAt(0));
+ const carA=block(1,[...block(1,text(vin)),...block(6,text('Polestar 4'))]);
+ const carB=block(1,[...block(1,text('BADVIN')),...block(6,text('Polestar 4'))]);
+ const response=Uint8Array.from([...block(1,carA),...block(1,carB)]);
+ assert.deepEqual(decodeMyCars(response),[{vin,content:{model:{name:'Polestar 4'}}}]);
+ assert.deepEqual(decodeMyCars(Uint8Array.of()),[]);
+ assert.throws(()=>decodeMyCars(Uint8Array.from([10,200])),/Truncated protobuf varint/);
 });
