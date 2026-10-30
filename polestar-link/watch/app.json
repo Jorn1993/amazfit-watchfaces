@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 8,
-      "name": "0.6.0"
+      "code": 9,
+      "name": "0.7.0"
     },
     "vender": "Personal prototype",
-    "description": "Polestar ID account setup; authentication and vehicle controls not yet enabled.",
+    "description": "Experimental Polestar 4 status and lock/unlock via private HTTPS gateway",
     "icon": "icon.png"
   },
   "permissions": [
