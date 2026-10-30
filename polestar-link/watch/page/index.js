@@ -28,7 +28,7 @@ Page(BasePage({
    if(this.pending && Date.now()<=this.pending.expires){
      const action=this.pending.action;this.pending=null;this.show('Sending '+action+'…');
      const r=await this.phoneRequest({method:'vehicle.command',params:{action,confirmed:true}},60000);
-     this.show(r&&r.ok?'Command sent\nRefresh status to verify':(r&&r.error)||'Command failed');
+     this.show(r&&r.ok&&r.verified?'Car state confirmed':(r&&r.error)||'Command not verified');
    }else{
      this.pending=null;
      this.show('Checking Zepp phone service…');
@@ -61,8 +61,8 @@ Page(BasePage({
        catch(e){grpcProbe={ok:false,error:String(e&&e.message||e)};}
        this.show('Login page: '+(authProbe.login_page?'yes':'no')+
         '\\nSession cookies: '+(authProbe.cookie_accessible?'yes':'not available')+
-        '\\ngRPC: '+(grpcProbe&&grpcProbe.grpc_reached?'reachable':
-          'not verified'));
+        '\\nPKCE crypto: '+(authProbe.pkce_secure_crypto?'available':'not verified')+
+        '\\ngRPC: unverified'+(grpcProbe&&grpcProbe.grpc_http?' (HTTP '+grpcProbe.grpc_http+')':''));
        return;
      }
      this.show('Fetching Polestar vehicle status…');
