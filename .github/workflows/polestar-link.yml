@@ -147,9 +147,23 @@ jobs:
           git add polestar-link/public/
           if ! git diff --cached --quiet; then
             git commit -m "build(polestar): publish developer ZPK and QR [skip ci]"
-            git push origin HEAD:feature/polestar-link
+            # Source commits may have landed while the package was compiling.
+            # Rebase the generated files onto the branch tip rather than
+            # losing a successfully built ZPK to a non-fast-forward push.
+            for attempt in 1 2 3; do
+              git fetch origin feature/polestar-link
+              git rebase origin/feature/polestar-link
+              if git push origin HEAD:feature/polestar-link; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "Could not publish ZPK after three rebased attempts" >&2
+                exit 1
+              fi
+            done
           fi
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: polestar-link-developer-build
           path: polestar-link/public/
