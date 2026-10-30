@@ -17,6 +17,42 @@ async function http(url,method='GET',headers={},body){
  if(typeof r.status!=='number'&&typeof r.statusCode==='number')r.status=r.statusCode;
  return r;
 }
+// Anonymous compatibility test: does Zepp Fetch preserve the OIDC login page
+// and expose a usable session cookie? Never sends credentials or stores tokens.
+async function authorizationPreflight(){
+ const base='https://polestarid.eu.polestar.com';
+ const configResponse=await http(base+'/.well-known/openid-configuration');
+ const config=json(configResponse);
+ if(configResponse.status!==200||!config||typeof config.authorization_endpoint!=='string')
+  throw Error('OIDC discovery failed HTTP '+configResponse.status);
+ const endpoint=config.authorization_endpoint;
+ if(!endpoint.startsWith(base+'/'))throw Error('Unexpected OIDC authorization origin');
+ // This challenge is for a diagnostic request only; it will not be exchanged.
+ const params={
+  response_type:'code',client_id:CLIENT,
+  redirect_uri:'polestar-explore://explore.polestar.com',
+  scope:'openid profile email customer:attributes customer:attributes:write',
+  state:'zepp-compatibility-test-not-a-login',
+  code_challenge:'8kAtgaHv_r1h9t3FZ71Nq4B74l-FWqG5GAZlJC8vlss',
+  code_challenge_method:'S256',response_mode:'query'
+ };
+ const url=endpoint+'?'+form(params);
+ const r=await http(url);
+ const body=typeof r.body==='string'?r.body:'';
+ // Report *only* booleans and status. Never return raw HTML, cookies or URLs.
+ const cookieNames=Object.keys(r.headers||{}).filter(k=>k.toLowerCase()==='set-cookie');
+ const rawCookie=cookieNames.length?header(r,'set-cookie'):'';
+ const hasCookie=!!rawCookie;
+ const resume=/(?:url|action)\\s*:\\s*["'][^"']+["']/.test(body);
+ return {
+  discovery_http:configResponse.status,
+  auth_http:r.status,
+  login_page:resume,
+  cookie_accessible:hasCookie,
+  redirect_status:r.status>=300&&r.status<400,
+  binary_transport:'not tested'
+ };
+}
 async function accessToken(){
  const token=store().getItem('polestar.access');
  if(!token)throw Error('Sign in using Zepp first');
@@ -127,6 +163,9 @@ AppSideService(BaseSideService({
  },
  async onRequest(req,res){
   try{
+   if(req.method==='auth.preflight'){
+    res(null,{ok:true,...await authorizationPreflight()});return;
+   }
    if(req.method==='zepp.ping'){
     res(null,{ok:true,version:'1.3.6-watch-diagnostics',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
