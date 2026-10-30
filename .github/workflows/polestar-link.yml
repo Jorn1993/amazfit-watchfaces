@@ -73,6 +73,19 @@ jobs:
                   except zipfile.BadZipFile:
                       print('PHONE COMPONENT NOT ZIP:',name)
 
+          # Analyze actual compiled device JavaScript, not only source syntax.
+          with zipfile.ZipFile(io.BytesIO(payload)) as z:
+              with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as device:
+                  print('DEVICE ENTRIES:',device.namelist())
+                  scripts=[n for n in device.namelist() if n.endswith('.js')]
+                  for script in scripts:
+                      b=device.read(script)
+                      for needle in (b'module.exports',b'.exports=',b'exports=',b'exports.',b'require('):
+                          hits=[i for i in range(len(b)) if b.startswith(needle,i)]
+                          for i in hits[:6]:
+                              print('JS PROBE',script,needle.decode(),i,
+                                    repr(b[max(0,i-130):i+170]))
+                      print('DEVICE SCRIPT SIZE',script,len(b))
           # The Zepp phone service must be in preview mode as well as the watch.
           # Previously only device.zip was converted, leaving app-side.zip in
           # production mode. That produced a watch UI without a live companion.
