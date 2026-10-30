@@ -12,18 +12,37 @@ AppSettingsPage({
       View({style:field},[TextInput({label:'Email',placeholder:'Email address',value:this.state.email,onChange:v=>{this.state.email=v;}})]),
       View({style:field},[TextInput({label:'Password',placeholder:'Password',type:'password',value:this.state.password,onChange:v=>{this.state.password=v;}})]),
       Button({label:'Sign in',onClick:()=>{
-        const email=(this.state.email||'').trim();
-        if(!email || !this.state.password){
+        // Snapshot fields before settingsStorage writes trigger reactive re-builds.
+        const email=String(this.state.email||'').trim();
+        const password=String(this.state.password||'');
+        if(!email||!password){
           s.setItem('polestar.login.status','Enter your email and password');return;
         }
-        s.setItem('polestar.email',email);
-        s.setItem('polestar.login.status','Connecting to Polestar…');
-        // Transient mailbox for Zepp Side Service. It deletes the value on receipt.
-        s.setItem('polestar.login.request',JSON.stringify({email,password:this.state.password}));
         this.state.password='';
+        const sentAt=Date.now();
+        s.setItem('polestar.email',email);
+        s.setItem('polestar.login.request.at',String(sentAt));
+        s.setItem('polestar.login.status','Waiting for Zepp service. Open Polestar Link on your watch once.');
+        // This transient request is consumed/removed by the phone-side service.
+        s.setItem('polestar.login.request',JSON.stringify({email,password}));
       }}),
       Text({paragraph:true,style:{marginTop:'18px'}},status),
+      Text({paragraph:true,style:{marginTop:'8px',fontSize:'13px',color:'#666666'}},
+        s.getItem('polestar.log')||'If no progress appears, open the app on your watch.'),
       Text({paragraph:true,style:{marginTop:'8px'}},s.getItem('vehicle.name')||''),
+      Button({label:'Check connection',onClick:()=>{
+        const pending=s.getItem('polestar.login.request');
+        const sent=Number(s.getItem('polestar.login.request.at')||0);
+        if(pending){
+          s.setItem('polestar.login.status',
+            Date.now()-sent>120000
+            ? 'Sign-in timed out before the Zepp service started. Open the watch app, then sign in again.'
+            : 'Waiting for the Zepp phone service. Open Polestar Link on your watch.');
+        }else{
+          const stage=s.getItem('polestar.log');
+          s.setItem('polestar.login.status',stage||'No pending sign-in request. Enter password and try again.');
+        }
+      }}),
       Button({label:'Disconnect',onClick:()=>{s.setItem('polestar.session.clear',String(Date.now()));s.setItem('polestar.login.status','Disconnected');}})
     ]);
   }
