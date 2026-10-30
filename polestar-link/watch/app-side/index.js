@@ -1,41 +1,30 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
-
-function report(message) {
-  settings.settingsStorage.setItem('probe.result',message);
-}
-
+const s=()=>settings.settingsStorage;
+const checks=[
+ {name:'GET',url:'https://www.polestar.com/',method:'GET'},
+ {name:'POST JSON',url:'https://postman-echo.com/post',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:'polestar-link'})},
+ {name:'POST custom',url:'https://postman-echo.com/post',method:'POST',headers:{'Content-Type':'application/json','X-Polestar-Link-Probe':'1'},body:JSON.stringify({probe:true})},
+ {name:'POST framed',url:'https://postman-echo.com/post',method:'POST',headers:{'Content-Type':'application/grpc'},body:String.fromCharCode(0,0,0,0,0)}
+];
 AppSideService(BaseSideService({
-  onInit() {
-    settings.settingsStorage.addListener('change', async ({key}) => {
-      if(key!=='probe.request')return;
-      report('Testing POST request…');
-      try {
-        // Echo endpoint only: no Polestar credentials or vehicle traffic.
-        // The five bytes are the empty-message gRPC frame.
-        const frame = String.fromCharCode(0,0,0,0,0);
-        const r = await fetch({
-          url:'https://postman-echo.com/post',
-          method:'POST',
-          headers:{'Content-Type':'application/grpc','TE':'trailers','X-Polestar-Link-Probe':'1'},
-          body:frame
-        });
-        const raw = typeof r.body==='string'?JSON.parse(r.body):r.body;
-        const contentType = raw && raw.headers && (raw.headers['content-type']||raw.headers['Content-Type']);
-        const echoed = raw && typeof raw.data==='string' ? raw.data : '';
-        const framePreserved = echoed.length===5 && echoed.charCodeAt(0)===0;
-        report('HTTP '+r.status+'; gRPC header '+(contentType?'echoed':'unknown')+
-          '; frame '+(framePreserved?'preserved':'not verified')+
-          '; HTTP/2 + trailers NOT verified');
-      } catch(e) {
-        report('POST probe failed; inspect Zepp logs');
-      }
-    });
-  },
-  onRequest(req,res){
-    if(req.method==='zepp.ping'){res(null,{ok:true,version:'0.8.0'});return;}
-    if(req.method==='vehicle.status'||req.method==='vehicle.command'){
-      res(null,{ok:false,error:'No authenticated Polestar session; vehicle commands disabled'});return;
+ onInit(){
+  s().addListener('change',async ({key})=>{
+   if(key!=='probe.request')return;
+   const output=[];
+   for(const check of checks){
+    try{
+     const {name,...opts}=check;
+     const r=await fetch(opts);
+     output.push(name+': HTTP '+r.status);
+    }catch(e){
+     output.push(check.name+': '+String(e&&e.message||e).slice(0,110));
     }
-    res(null,{ok:false,error:'Unknown request'});
-  }
+    s().setItem('probe.result',output.join(' | '));
+   }
+  });
+ },
+ onRequest(req,res){
+  if(req.method==='zepp.ping'){res(null,{ok:true,version:'0.8.1'});return;}
+  res(null,{ok:false,error:'Vehicle authentication and commands unavailable in diagnostic build'});
+ }
 }));
