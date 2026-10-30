@@ -44,7 +44,10 @@ function redirectDestination(location){
   throw Error('Polestar redirect location missing or unsafe');
  if(location.startsWith('/')&&!location.startsWith('//'))return BASE+location;
  if(location.startsWith(BASE+'/')||location===BASE)return location;
- throw Error('Polestar login redirected outside identity service');
+ // Report only a validated hostname, never a full URL, query, token or code.
+ const host=(location.match(/^https?:\\/\\/([a-z0-9.-]+)(?:[/:?#]|$)/i)||[])[1];
+ const label=host?host.slice(0,64):location.startsWith(REDIRECT)?'app-callback':'unknown';
+ throw Error('Polestar login redirected outside identity service ('+label+')');
 }
 function resumePathFromRedirect(location){
  if(typeof location!=='string'||!location||/[\\\r\n]/.test(location))
