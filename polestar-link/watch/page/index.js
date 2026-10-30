@@ -19,11 +19,28 @@ Page(BasePage({
      const r=await this.request({method:'vehicle.command',params:{action,confirmed:true}},{timeout:60000});
      this.show(r&&r.ok?'Command sent\nRefresh status to verify':(r&&r.error)||'Command failed');
    }else{
-     this.pending=null;this.show('Fetching vehicle status…');
-     const r=await this.request({method:'vehicle.status'},{timeout:60000});
-     this.show(r&&r.ok?'Battery: '+(r.battery_percent??'?')+'%\nRange: '+(r.range_km??'?')+' km\nLock: '+(r.lock_state||'unknown'):(r&&r.error)||'No connection');
+     this.pending=null;
+     this.show('Checking Zepp phone service…');
+     let ping;
+     try{
+       ping=await this.request({method:'zepp.ping'},{timeout:10000});
+     }catch(error){
+       this.show('Phone service unavailable.\\nOpen Zepp and try again.');
+       return;
+     }
+     if(!ping||!ping.ok){
+       this.show('No response from Zepp phone.');
+       return;
+     }
+     if(!ping.auth){
+       this.show('Sign in using Zepp app.\\n'+String(ping.status||'Not connected').slice(0,90));
+       return;
+     }
+     this.show('Fetching Polestar vehicle status…');
+     const r=await this.request({method:'vehicle.status'},{timeout:20000});
+     this.show(r&&r.ok?'Battery: '+(r.battery_percent??'?')+'%\\nRange: '+(r.range_km??'?')+' km\\nLock: '+(r.lock_state||'unknown'):(r&&r.error)||'Polestar status failed');
    }
-  }catch(e){this.show('Timed out / failed\nCheck your car and settings');}
+  }catch(e){this.show('Connection timed out.\nCheck Zepp on your phone.');}
   finally{this.busy=false;}
  },
  onDestroy(){this.disposed=true;}
