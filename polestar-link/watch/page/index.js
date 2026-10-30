@@ -44,7 +44,20 @@ Page(BasePage({
        return;
      }
      if(!ping.auth){
-       this.show('Sign in using Zepp app.\\n'+String(ping.status||'Not connected').slice(0,90));
+       this.show('Checking Polestar login compatibility…');
+       let authProbe;
+       try{authProbe=await this.phoneRequest({method:'auth.preflight'},20000);}
+       catch(e){
+         this.show('Polestar login probe failed.\\n'+String(e&&e.message||e).slice(0,90));
+         return;
+       }
+       if(!authProbe||!authProbe.ok){
+         this.show('Polestar login probe failed.\\n'+String(authProbe&&authProbe.error||'No response').slice(0,90));
+         return;
+       }
+       this.show('Polestar OAuth HTTP '+authProbe.auth_http+
+        '\\nLogin form: '+(authProbe.login_page?'yes':'no')+
+        '\\nSession cookies: '+(authProbe.cookie_accessible?'yes':'not available'));
        return;
      }
      this.show('Fetching Polestar vehicle status…');
