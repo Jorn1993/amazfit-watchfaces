@@ -32,6 +32,8 @@ jobs:
           npm install --prefix zeus-cli @zeppos/zeus-cli@1.9.3
           ln -s @zeppos/zeus-cli/private-modules/zeppos-app-utils zeus-cli/node_modules/zeppos-app-utils
           npm install --prefix polestar-link/watch
+      - name: Test vehicle protocol codecs
+        run: node --test polestar-link/watch/tests/*.test.mjs
       - name: Create icon and build app
         run: |
           node polestar-link/watch/prepare-icons.mjs
