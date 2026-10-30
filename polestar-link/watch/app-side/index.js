@@ -578,7 +578,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.22-two-page-redesign',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.23-watch-metrics-fix',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    if(req.method==='vehicle.capabilities'){
     res(null,{ok:true,authenticated:!!store().getItem('polestar.access'),
