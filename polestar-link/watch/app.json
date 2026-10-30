@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "name": "1.3.20",
-      "code": 40
+      "name": "1.3.21",
+      "code": 41
     },
     "vender": "Personal prototype",
-    "description": "Automatic VIN transport diagnostics and compact status screen",
+    "description": "C3 Polestar 4 feature-port prototype: multi-screen watch controls guarded by live native transport",
     "icon": "icon.png"
   },
   "permissions": [
