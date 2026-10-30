@@ -2,14 +2,14 @@
   "configVersion": "v3",
   "app": {
     "appId": 1098347,
-    "appName": "Link Test",
+    "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 1,
-      "name": "0.1.0"
+      "code": 2,
+      "name": "0.2.0"
     },
     "vender": "Personal prototype",
-    "description": "Local Android connection test. No vehicle commands.",
+    "description": "Zepp-only Polestar Link demo; no vehicle commands enabled.",
     "icon": "icon.png"
   },
   "permissions": [
@@ -32,6 +32,9 @@
         },
         "app-side": {
           "path": "app-side/index"
+        },
+        "setting": {
+          "path": "setting/index"
         }
       },
       "platforms": [
@@ -49,7 +52,7 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "Link Test"
+      "appName": "Polestar Link"
     }
   },
   "defaultLanguage": "en-US"
