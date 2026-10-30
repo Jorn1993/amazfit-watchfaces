@@ -1,0 +1,1 @@
+zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link.zpk
