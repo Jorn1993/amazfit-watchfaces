@@ -427,6 +427,7 @@ async function connectManualVin(){
   // Prove VIN+token+binary C3 status before enabling commands.
   try{
    const result=await grpc('GetLatestBattery',vin);
+   if(!result.complete)throw Error('Native gRPC completion could not be verified');
    decodeBattery(result.payload);
    s.setItem('vehicle.verified','true');
    s.setItem('polestar.vehicle.verify.status','native_verified');
@@ -456,6 +457,7 @@ async function verifyVehicleStatus(){
  s.setItem('polestar.vehicle.verify.status','testing_native');
  try{
   const result=await grpc('GetLatestBattery',vin);
+  if(!result.complete)throw Error('Native gRPC completion could not be verified');
   decodeBattery(result.payload);
   s.setItem('vehicle.verified','true');
   s.setItem('polestar.vehicle.verify.status','native_verified');
@@ -592,6 +594,7 @@ AppSideService(BaseSideService({
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
    if(req.method==='vehicle.status'){
     const result=await grpc('GetLatestBattery',vin);
+    if(!result.complete)throw Error('Native gRPC completion could not be verified');
     const data=decodeBattery(result.payload);
     store().setItem('vehicle.verified','true');
     try{
