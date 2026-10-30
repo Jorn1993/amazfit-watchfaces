@@ -1,6 +1,6 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { authenticatePolestar } from './oidc.js';
-import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
+import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation, decodeMyCars } from './proto.js';
 const store=()=>settings.settingsStorage;
 const CLIENT='lp8dyrd_10';
 const GQL='https://pc-api.polestar.com/eu-north-1/app-backend/api/graphql';
@@ -155,7 +155,8 @@ async function accessToken(){
 // in diagnostics: never serialize VINs, OAuth tokens, or response bodies.
 async function vehicles(token){
  const report={mobile_http:null,mobile_count:0,mobile_shape:'unknown',
-  consumer_v2_http:null,consumer_v2_count:0,consumer_v2_shape:'unknown'};
+  consumer_v2_http:null,consumer_v2_count:0,consumer_v2_shape:'unknown',
+  consumer_v2_raw_http:null,c3_http:null,c3_count:0,c3_shape:'not_tested'};
  store().setItem('polestar.vehicle.lookup',JSON.stringify(report));
  let cars=[];
  try{
@@ -200,8 +201,54 @@ async function vehicles(token){
    }
   }catch(e){report.consumer_v2_shape='network_error';}
  }
+ // Some legacy MyStar clients send the access token without "Bearer ".
+ // Try this form only when the authenticated V2 request explicitly returned
+ // 401. Both requests remain on Polestar's own HTTPS endpoint.
+ if(!cars.length&&report.consumer_v2_http===401){
+  try{
+   const query='query GetConsumerCarsV2 { getConsumerCarsV2 { vin modelYear modelName } }';
+   const r=await http('https://pc-api.polestar.com/eu-north-1/mystar-v2/','POST',{
+    'Content-Type':'application/json','Accept':'application/json',
+    'Authorization':token
+   },JSON.stringify({operationName:'GetConsumerCarsV2',variables:{},query}));
+   report.consumer_v2_raw_http=r.status;
+   const data=json(r),list=data&&data.data&&data.data.getConsumerCarsV2;
+   if(r.status===200&&Array.isArray(list)){
+    cars=list.filter(car=>car&&/^[A-HJ-NPR-Z0-9]{17}$/i.test(car.vin||''))
+     .map(car=>({vin:car.vin.toUpperCase(),content:{model:{name:car.modelName||'Polestar'}}}));
+    report.consumer_v2_count=cars.length;
+    report.consumer_v2_shape='array';
+   }
+  }catch(e){}
+ }
+ // C3's read-only GetMyCars works for some linked/guest accounts whose
+ // GraphQL listings are empty. Requires authentic gRPC binary response; if
+ // Zepp Fetch strips binary, leave diagnostics and do not claim discovery.
+ if(!cars.length){
+  try{
+   const auth={'Authorization':'Bearer '+token,
+    'Accept':'application/volvo.cloud.cnepmob.v1+json'};
+   const discovery=await http('https://cnepmob.volvocars.com/','GET',auth);
+   const data=json(discovery),host=data&&data.c3&&data.c3.grpcHost;
+   if(discovery.status!==200||typeof host!=='string'||!/^[a-z0-9.-]+$/i.test(host))
+    throw Error('c3_unavailable');
+   const res=await http('https://'+host+'/car_information.CarInformation/GetMyCars','POST',{
+     'Content-Type':'application/grpc','TE':'trailers',
+     'Authorization':'Bearer '+token,'grpc-accept-encoding':'identity'
+   },String.fromCharCode(0,0,0,0,0));
+   report.c3_http=res.status;
+   if(res.status===200){
+    const messages=grpcMessages(res.body);
+    cars=decodeMyCars(messages[messages.length-1]);
+    report.c3_count=cars.length;
+    report.c3_shape='binary_decoded';
+   }else report.c3_shape='http_error';
+  }catch(e){
+   report.c3_shape='transport_unavailable';
+  }
+ }
  store().setItem('polestar.vehicle.lookup',JSON.stringify(report));
- if(!cars.length)throw Error('No cars returned by mobile/V2 APIs. Retry vehicle lookup.');
+ if(!cars.length)throw Error('No cars listed. Enter your vehicle VIN or retry lookup.');
  store().setItem('vehicle.vin',cars[0].vin);
  store().setItem('vehicle.name',((cars[0].content||{}).model||{}).name||'Polestar');
  return cars[0];
@@ -298,6 +345,8 @@ async function retryVehicleDiscovery(){
   const token=await accessToken();
   const car=await vehicles(token);
   await endpoint(token);
+  store().removeItem('vehicle.verified');
+  store().setItem('vehicle.source','account_lookup');
   trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
  }catch(e){
   store().removeItem('vehicle.vin');
@@ -305,6 +354,34 @@ async function retryVehicleDiscovery(){
   store().removeItem('polestar.c3');
   trace('AUTH','Account signed in. Vehicle lookup: '+String(e&&e.message||e).slice(0,100));
  }finally{vehicleDiscoveryInFlight=false;}
+}
+let manualVehicleInFlight=false;
+async function connectManualVin(){
+ const s=store(),vin=String(s.getItem('polestar.manual.vin.request')||'').trim().toUpperCase();
+ if(!vin||manualVehicleInFlight)return;
+ s.removeItem('polestar.manual.vin.request');
+ manualVehicleInFlight=true;
+ try{
+  if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin))throw Error('Enter a valid 17-character VIN');
+  const token=await accessToken();
+  const host=await endpoint(token);
+  if(!host)throw Error('Vehicle cloud unavailable');
+  s.setItem('vehicle.vin',vin);
+  s.setItem('vehicle.name','Polestar 4');
+  s.setItem('vehicle.source','manual');
+  s.removeItem('vehicle.verified');
+  // Prove VIN+token+binary C3 status before enabling commands.
+  try{
+   const result=await grpc('GetLatestBattery',vin);
+   decodeBattery(result.payload);
+   s.setItem('vehicle.verified','true');
+   trace('READY','Polestar 4 verified via live battery status');
+  }catch(e){
+   trace('AUTH','VIN configured; cloud status not verified: '+String(e&&e.message||e).slice(0,75));
+  }
+ }catch(e){
+  trace('ERROR',String(e&&e.message||e).slice(0,90));
+ }finally{manualVehicleInFlight=false;}
 }
 let oauthInFlight=false;
 async function processOauthResult(){
@@ -342,6 +419,7 @@ function receiveStorageChange({key}={}){
    'polestar.c3','vehicle.vin','vehicle.name','polestar.token.endpoint',
    'polestar.oauth.result','polestar.oauth.result.at',
    'polestar.vehicle.lookup','polestar.vehicle.discovery.request',
+   'vehicle.verified','vehicle.source','polestar.manual.vin.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
@@ -350,6 +428,8 @@ function receiveStorageChange({key}={}){
  }else if(key==='polestar.vehicle.discovery.request'){
   store().removeItem('polestar.vehicle.discovery.request');
   void retryVehicleDiscovery();
+ }else if(key==='polestar.manual.vin.request'){
+  void connectManualVin();
  }else if(key==='polestar.probe.request'){
   void processConnectionProbe();
  }else if(key==='polestar.login.probe.request'){
@@ -387,13 +467,14 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.17-existing-session-callback',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.18-vehicle-fallback-and-clean-ui',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
    if(req.method==='vehicle.status'){
     const result=await grpc('GetLatestBattery',vin);
     const data=decodeBattery(result.payload);
+    store().setItem('vehicle.verified','true');
     try{
      const ext=await grpc('GetLatestExterior',vin);
      data.lock_state=decodeExterior(ext.payload).lock_state;
@@ -403,6 +484,7 @@ AppSideService(BaseSideService({
    if(req.method==='vehicle.command'){
     const p=req.params||{};
     if(p.confirmed!==true||!['lock','unlock'].includes(p.action))throw Error('Confirmation required');
+    if(store().getItem('vehicle.verified')!=='true')throw Error('Verify vehicle status before lock/unlock');
     const method=p.action==='lock'?'Lock':'Unlock';
     const result=await grpc(method,vin);
     const invocation=decodeInvocation(result.payload);
