@@ -1,29 +1,44 @@
-# Polestar Link — Zepp-only prototype
+# Polestar Link — Amazfit Balance 2 / Zepp Android
 
-**Version 0.2.0 — non-operational vehicle demo.**
+**Status: experimental, not working end-to-end against a real Polestar 4.**
+Source code lives on `feature/polestar-link`. Do not merge as an advertised working car-key application.
 
-The Amazfit Balance 2 app contains a Lock/Unlock user interface and a Test Zepp button. The Zepp Android app hosts a Settings page and Side Service. **No separate Android APK, Home Assistant, Polestar credentials, or live vehicle-control endpoint is required for the demo.**
+## What is actually verified
 
-The Lock/Unlock buttons are deliberately inert and do not talk to a vehicle. The UI explains this. Never enter Polestar passwords or tokens into this prototype.
+- On 30 October 2026 the real Balance 2 sent a `zepp.ping` RPC through Zepp's Side Service and received `{ok:true, auth:false, status:"Not connected"}`. Watch ↔ Zepp communication **works**.
+- Zepp Auth opens a browser, but Polestar returns **Invalid Session**. Polestar rejects the callback supplied by Zepp's generic OAuth component.
+- Anonymous tests of Polestar's OIDC metadata show a registered web callback and mobile-app callback work with the normal authorization endpoint; the Zepp callback returned HTTP 400.
+- Device-code and password OAuth grants are `unauthorized_client` for the known mobile/web clients; the provider advertising a grant does **not** mean a given client is authorized for it.
+- `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
+- These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
-## Layout
+## Current diagnostic release
 
-- `watch/page/index.js` — safe watch UI
-- `watch/setting/index.js` — Zepp settings page
-- `watch/app-side/index.js` — Zepp-hosted side service, no vehicle network traffic
-- `watch/app.json` — manifest (setting + app-side registered)
-- `.github/workflows/polestar-link.yml` — standalone developer build and QR
+The watch's Status button and the Zepp settings page can perform **credential-free compatibility checks**:
 
-## Install
+1. Polestar OIDC discovery and login-page session cookie visibility.
+2. C3 backend discovery and anonymous gRPC transport access (no VIN, token or lock/unlock action).
+3. Zepp Settings shows a disabled `Demo123!` input with CSS password masking. This is a *visual test only*, not a real password field. **Do not enter actual credentials until masking is proven on the phone.**
 
-The GitHub workflow builds a preview-mode `.zpk` and stores its QR and package in `polestar-link/public/` on the feature branch. To use the QR, open:
+Responses contain only booleans, status codes, and short errors; no cookies, codes, tokens, full OAuth redirects or credentials are logged.
 
-https://github.com/Jorn1993/amazfit-watchfaces/blob/feature/polestar-link/polestar-link/public/install-qr.png?raw=true
+## Reproducing the build
 
-In Zepp, select Developer Mode > Scan. The QR will work only if the new build has finished successfully; check the package revision before retesting. No production release or merging to either watchface branch is intended.
+The GitHub Action `polestar-link.yml` checks JavaScript syntax, runs unit/integration tests, builds a developer ZPK, repackages both watch and phone bundles as preview mode, and publishes the package/QR in `polestar-link/public`.
 
-## Why remote lock/unlock is not yet implemented
+Tests are **mocked**. They do not prove real authentication or vehicle communication.
 
-Zepp Settings UI and Side Service are documented, so the companion APK can be avoided. Polestar 4 uses undocumented third-party authentication/control endpoints. The app **must not ask for Polestar credentials or claim success** until sign-in, token storage, command authorization, and device-specific API behavior are independently validated. Live unlock must require an explicit confirmation and provide server acknowledgment and updated lock status.
+## Release blockers
 
-See https://docs.zepp.com/docs/guides/framework/app-settings/register/ and https://github.com/kildahldev/unofficial-polestar-api for background.
+- Zepp-side Fetch must preserve Polestar session cookies and expose the 302 redirect with an authorization code. Browser/phone runtimes must provide cryptographically secure randomness and SHA-256 for PKCE.
+- Password input must be securely masked, with no plaintext displayed or persisted in Zepp settings or logs. Prior TextInput `type: "password"` was ignored, so do not reuse it.
+- Zepp Fetch must support the real C3 backend gRPC/HTTP2 requirements, including binary protobuf responses and trailers/streaming.
+- End-to-end status, lock and unlock must be tested on a real Polestar 4 with user approval, never inferred from simulations. Lock/unlock requires confirmation.
+
+## Source references
+
+- https://github.com/kaohlive/Polestar/tree/master/clone_modules/polestar-c3
+- https://github.com/kildahldev/unofficial-polestar-api
+- https://github.com/pypolestar/pypolestar/blob/main/pypolestar/auth.py
+- https://docs.zepp.com/docs/reference/side-service-api/fetch/
+- https://github.com/Jorn1993/amazfit-watchfaces/issues/1
