@@ -99,7 +99,7 @@ export function decodeExterior(payload){
   return {lock_state:value===2?'locked':value===1?'unlocked':'unknown'};
 }
 export function decodeInvocation(payload){
-  const outer=fields(payload),response=outer[1]&&fields(outer[1]);
+  const outer=fields(payload),response=outer[1] instanceof Uint8Array?fields(outer[1]):null;
   if(!response)throw Error('No Polestar command response');
   const status=response[3],message=text(response[4]),requestId=text(response[1]);
   const labels={0:'unknown error',1:'sent',2:'car offline',4:'delivered',5:'delivery timed out',6:'success',7:'response timed out',8:'car error',9:'privacy enabled',10:'wrong usage mode',11:'invocation error',12:'conflicting command'};
