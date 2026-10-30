@@ -12,6 +12,15 @@ Source code lives on `feature/polestar-link`. Do not merge as an advertised work
 - `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
 - These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
+## Credential-free account login feasibility (source v1.3.11)
+
+The Zepp Settings screen offers **Test login options (no password)**. It runs two independent, harmless checks:
+
+1. Zepp Side Service sends only `zepp_probe_only=harmless` as a synthetic Cookie header to `https://httpbin.org/cookies` and checks if the echo matched; it never sends any Polestar cookie or account detail to that service. An HTTP echo only proves that the cookie header could travel via Zepp Fetch. It does not prove Polestar will accept login.
+2. The Settings App tries a browser-style, credential-free GET of Polestar OIDC metadata with `credentials:'omit'`. If browser fetch is unavailable or blocked by CORS, **do not add password entry** via Settings. Even a successful GET would not mean the account's existing app session is shared.
+
+Do not ask users to enter passwords in Zepp until a safe transient credential/auth channel exists. Zepp `settingsStorage` is persistent, even if a TextInput shows bullet characters. The official Polestar app's existing account session is **not automatically accessible** to Zepp; native Zepp OAuth previously failed because its redirect is not registered at Polestar. These checks contain no real credentials, OAuth codes, VINs or vehicle commands.
+
 ## Current diagnostic release (source v1.3.10)
 
 - The direct Zepp app still does **not** authenticate against Polestar and is **not** a working car key.
