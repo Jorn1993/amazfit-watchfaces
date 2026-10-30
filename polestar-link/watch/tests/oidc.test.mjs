@@ -163,3 +163,72 @@ test('Stop repeated authentication redirects instead of looping forever',async()
  );
  assert.equal(redirected,7);
 });
+
+
+test('A Polestar website resumePath redirect leads directly to the identity resume POST',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const destinations=[];let posted=false;
+ const http=async(url,method='GET',headers={},body)=>{
+  destinations.push(url.split('?')[0]);
+  if(url.startsWith(ID+'/as/authorization.oauth2?')){
+   await baseline(url,method,headers,body); // mock provider remembers state
+   return {status:302,headers:{
+    Location:'https://www.polestar.com/sign-in?resumePath=aBcD123',
+    'Set-Cookie':'PF=dummy-cookie; Path=/; Secure; HttpOnly'
+   }};
+  }
+  if(url.startsWith(ID+'/as/aBcD123/resume/as/authorization.ping?')){
+   assert.equal(method,'POST');
+   assert.equal(headers.Cookie,'PF=dummy-cookie');
+   const fields=new URLSearchParams(body);
+   assert.equal(fields.get('pf.username'),'nobody@example.invalid');
+   assert.equal(fields.get('pf.pass'),'fake-test-password');
+   posted=true;
+   const state=new URL(url).searchParams.get('state');
+   return {status:302,headers:{
+    Location:'polestar-explore://explore.polestar.com?code=mock-code&state='+state
+   }};
+  }
+  return baseline(url,method,headers,body);
+ };
+ const result=await authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto);
+ assert.equal(result.access_token,'mock-token');
+ assert.equal(posted,true);
+ assert.equal(destinations.some(url=>url.startsWith('https://www.polestar.com')),false,
+  'Do not fetch the website URL or send Polestar PF cookies there');
+ assert.equal(trace.filter(item=>item.method==='POST').length,1,'Token exchange only in baseline transport');
+});
+
+test('Reject external resumePath injection without sending credentials',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?'))
+   return {status:302,headers:{
+    Location:'https://another-example.org/login?resumePath=aBcD123',
+    'Set-Cookie':'PF=dummy-cookie'
+   }};
+  return baseline(url,method,headers,body);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /outside identity service/
+ );
+ assert.equal(trace.length,1,'No credentials may be submitted');
+});
+
+test('Reject malformed resumePath in official redirect',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?'))
+   return {status:302,headers:{
+    Location:'https://www.polestar.com/sign-in?resumePath=..%2F..%2Ftest',
+    'Set-Cookie':'PF=dummy-cookie'
+   }};
+  return baseline(url,method,headers,body);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /outside identity service/
+ );
+ assert.equal(trace.length,1);
+});
