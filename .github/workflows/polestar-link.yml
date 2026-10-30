@@ -144,24 +144,38 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add polestar-link/public/
-          if ! git diff --cached --quiet; then
+          # Preserve the compiled result before refreshing the branch.
+          # A rebase of two binary ZPK releases with the same filename causes
+          # an add/add conflict; publish from the latest branch head instead.
+          release_files="$(mktemp -d)"
+          cp -a polestar-link/public/. "$release_files/"
+          for attempt in 1 2 3; do
+            git fetch origin feature/polestar-link
+            # Never replace a package produced by a newer source revision.
+            stale="$(git diff --name-only "$GITHUB_SHA" origin/feature/polestar-link -- \
+              polestar-link/watch/ .github/workflows/polestar-link.yml)"
+            if [ -n "$stale" ]; then
+              echo "New Polestar source available; skipping obsolete build:"
+              echo "$stale"
+              exit 0
+            fi
+            git reset --hard origin/feature/polestar-link
+            cp -a "$release_files"/. polestar-link/public/
+            git add polestar-link/public/
+            if git diff --cached --quiet; then
+              echo "Matching developer ZPK and QR are already published."
+              break
+            fi
             git commit -m "build(polestar): publish developer ZPK and QR [skip ci]"
-            # Source commits may have landed while the package was compiling.
-            # Rebase the generated files onto the branch tip rather than
-            # losing a successfully built ZPK to a non-fast-forward push.
-            for attempt in 1 2 3; do
-              git fetch origin feature/polestar-link
-              git rebase origin/feature/polestar-link
-              if git push origin HEAD:feature/polestar-link; then
-                break
-              fi
-              if [ "$attempt" -eq 3 ]; then
-                echo "Could not publish ZPK after three rebased attempts" >&2
-                exit 1
-              fi
-            done
-          fi
+            if git push origin HEAD:feature/polestar-link; then
+              echo "Developer ZPK and QR published."
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Could not publish developer ZPK after three pushes" >&2
+              exit 1
+            fi
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
