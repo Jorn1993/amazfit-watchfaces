@@ -48,7 +48,8 @@ test('Two watch views only: main dashboard and the full C3 action grid',async()=
  assert.ok(page.widgets.main.every(w=>w.visible===false));
  assert.ok(page.widgets.more.every(w=>w.visible===true));
  const actions=page.widgets.more.filter(w=>w.type==='BUTTON').map(w=>w.state.text);
- assert.deepEqual(actions,[
+ // Convert VM-owned arrays to host arrays before strict prototype comparison.
+ assert.deepEqual(JSON.parse(JSON.stringify(actions)),[
   'TRUNK','FLASH','HONK','HONK + FLASH',
   'OPEN WINDOWS','CLOSE WINDOWS','CLIMATE ON','CLIMATE OFF','BACK'
  ]);
