@@ -43,8 +43,9 @@ async function authenticate(email,password){
  const html=String(start.body||'');
  const match=html.match(/(?:url|action):\s*"([^"]+)"/);
  if(!match)throw Error('Login session unavailable HTTP '+start.status);
- const resume=new URL(match[1],ID).toString();
- if(!resume.startsWith(ID+'/'))throw Error('Unexpected login destination');
+ const resumePath=match[1];
+ if(!resumePath.startsWith('/')||resumePath.startsWith('//')||resumePath.includes('\\'))throw Error('Unexpected Polestar login destination');
+ const resume=ID+resumePath;
  trace('AUTH','Submitting Polestar ID');
  const response=await http(resume+'?'+query,'POST',{'Content-Type':'application/x-www-form-urlencoded'},form({'pf.username':email,'pf.pass':password}));
  const location=header(response,'location');
