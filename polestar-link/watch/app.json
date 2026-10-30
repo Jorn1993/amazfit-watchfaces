@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 7,
-      "name": "0.5.1"
+      "code": 8,
+      "name": "0.6.0"
     },
     "vender": "Personal prototype",
-    "description": "Direct Zepp networking diagnostic; no vehicle control.",
+    "description": "Polestar ID account setup; authentication and vehicle controls not yet enabled.",
     "icon": "icon.png"
   },
   "permissions": [
