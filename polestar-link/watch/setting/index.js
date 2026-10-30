@@ -100,6 +100,23 @@ AppSettingsPage({
     TextInput({label:'Polestar email',value:loginEmail||s.getItem('polestar.email')||'',
       placeholder:'you@example.com',onChange:value=>{loginEmail=String(value||'');},
       subStyle:{borderRadius:'8px',padding:'12px',background:'#eef2f3'}}),
+    Button({label:'Continue with existing Polestar session',style:{
+      borderRadius:'12px',padding:'12px',background:'#264059',color:'#ffffff'
+     },onClick:()=>{
+      const email=(loginEmail||s.getItem('polestar.email')||'').trim();
+      if(!email){
+       s.setItem('polestar.login.status','ERROR: Enter your Polestar email first');
+       return;
+      }
+      // Does not request or persist a password. An existing OIDC session
+      // must supply a matching-state mobile app callback for token exchange.
+      s.setItem('polestar.email',email);
+      s.setItem('polestar.login.status','AUTH: Checking existing Polestar session…');
+      s.setItem('polestar.login.request.at',String(Date.now()));
+      s.setItem('polestar.login.request',JSON.stringify({email,password:''}));
+     }}),
+    Text({paragraph:true,style:{color:'#555555',fontSize:'12px'}},
+      'Try this first. If no active session is available, use your password below.'),
     TextInput({label:'Polestar password',value:loginPassword,
       placeholder:'Password',onChange:value=>{loginPassword=String(value||'');},
       subStyle:{WebkitTextSecurity:'disc',webkitTextSecurity:'disc',
