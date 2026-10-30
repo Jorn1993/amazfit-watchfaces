@@ -1,36 +1,31 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 const s=()=>settings.settingsStorage;
-function directConfig(){
- const host=(s().getItem('direct.host')||'').trim().replace(/\/$/,'');
- const token=s().getItem('direct.token')||'';
- const vin=s().getItem('direct.vin')||'';
- if(!/^https:\/\/[a-z0-9.-]+(?::443)?$/i.test(host))throw Error('Set HTTPS C3 API host');
- if(!token)throw Error('Set access token');
- if(!/^[a-z0-9]{17}$/i.test(vin))throw Error('Set 17-character VIN');
- return {host,token,vin};
+const provider='https://polestarid.eu.polestar.com';
+function log(message){s().setItem('polestar.log',new Date().toISOString()+' '+message);}
+function parse(response){try{return typeof response.body==='string'?JSON.parse(response.body):response.body;}catch(e){return null;}}
+async function discover(){
+ const r=await fetch({url:provider+'/.well-known/openid-configuration',method:'GET'});
+ const data=parse(r);
+ if(r.status!==200||!data||!data.authorization_endpoint||!data.token_endpoint)throw Error('OIDC discovery HTTP '+r.status);
+ if(!data.authorization_endpoint.startsWith(provider+'/')||!data.token_endpoint.startsWith(provider+'/'))throw Error('Unexpected identity endpoint');
+ return data;
 }
-async function probe(){
- const {host,token,vin}=directConfig();
- const path=(s().getItem('direct.path')||'').trim();
- if(!/^\/[a-zA-Z0-9._/-]+$/.test(path))throw Error('Set gRPC service/method path');
- const r=await fetch({url:host+path,method:'POST',headers:{
-  'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,'vin':vin
- },body:String.fromCharCode(0,0,0,0,0)});
- return {status:r.status,bodyType:typeof r.body,headers:r.headers||{}};
+async function beginLogin(){
+ log('Checking official Polestar ID discovery…');
+ const config=await discover();
+ s().setItem('polestar.auth.endpoint',config.authorization_endpoint);
+ s().setItem('polestar.token.endpoint',config.token_endpoint);
+ log('Polestar ID discovered. OAuth PKCE login transport pending.');
 }
 AppSideService(BaseSideService({
  onInit(){
   s().addListener('change',async ({key})=>{
-   if(key!=='direct.probe')return;
-   s().setItem('direct.result','Sending framed gRPC request…');
-   try{
-    const r=await probe();
-    s().setItem('direct.result','HTTP '+r.status+'; response '+r.bodyType+'; gRPC status not verified');
-   }catch(e){s().setItem('direct.result','Failed: '+String(e.message||e).slice(0,150));}
+   if(key!=='polestar.login.request')return;
+   try{await beginLogin();}catch(e){log('Login preparation failed: '+String(e.message||e).slice(0,160));}
   });
  },
  onRequest(req,res){
-  if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.1.0-experimental'});return;}
-  res(null,{ok:false,error:'Direct C3 gRPC authentication and vehicle commands are not yet implemented. Run transport probe in Zepp settings.'});
+  if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.2.0-experimental'});return;}
+  res(null,{ok:false,error:'Polestar ID authentication is not complete; no vehicle commands issued.'});
  }
 }));
