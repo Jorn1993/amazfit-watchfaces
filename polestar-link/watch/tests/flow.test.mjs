@@ -16,7 +16,7 @@ function msg(id,body){return Uint8Array.from([id*8+2,body.length,...body]);}
 function num(id,value){return [id*8,value];}
 function dbl(id,value){const b=new ArrayBuffer(8);new DataView(b).setFloat64(0,value,true);return [id*8+1,...new Uint8Array(b)];}
 
-function launch(startImmediately=true){
+function launch(startImmediately=true,options={}){
  const map=new Map(),listeners=[];
  const storage={
   getItem:k=>map.get(k)||'',
@@ -30,12 +30,12 @@ function launch(startImmediately=true){
    return {status:200,body:{authorization_endpoint:'https://polestarid.eu.polestar.com/as/authorization.oauth2'}};
   if(url.startsWith('https://polestarid.eu.polestar.com/as/authorization.oauth2?'))
    return {status:200,body:'url: "/as/aBcD/resume"',headers:{'Set-Cookie':'PF=mock-session; HttpOnly; Secure'}};
-  if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
+  if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:options.noCars?[]:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
    assert.equal(typeof body,'string');
    if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
-   if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,locked?2:1)))};
+   if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,(options.staleExterior?false:locked)?2:1)))};
    if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
     return {status:200,headers:{'grpc-status':'0'},body:Uint8Array.from([...proto.grpcFrame(msg(1,num(3,1))),...proto.grpcFrame(msg(1,num(3,4))),...proto.grpcFrame(msg(1,num(3,6)))])};
@@ -167,6 +167,8 @@ test('Anonymous C3 gRPC probe does not require credentials or invoke vehicle com
  assert.equal(response.discovery_http,200);
  assert.equal(response.grpc_http,200);
  assert.equal(response.grpc_reached,true);
+ assert.equal(response.grpc_verified,false,'Anonymous HTTP is not proof of working gRPC');
+ assert.equal(response.grpc_binary_readable,true,'Mock transport returns native bytes');
  assert.equal(response.grpc_content_type,'application/grpc');
  assert.equal(getCommands(),0);
  assert.equal(storage.getItem('polestar.access'),'');
@@ -186,6 +188,31 @@ test('Zepp settings compatibility button runs both probes without password input
  assert.equal(report.login_page,true);
  assert.equal(report.cookie_accessible,true);
  assert.equal(report.grpc_reached,true);
+ assert.equal(report.grpc_verified,false);
+ assert.equal(report.pkce_secure_crypto,false,'Mock Zepp runtime does not expose WebCrypto');
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(storage.getItem('polestar.access'),'');
+});
+
+test('Successful command RPC without matching exterior state is pending, not success',async()=>{
+ const {storage,side,getCommands}=launch(true,{staleExterior:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'mock-token'}));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const result=await ask(side,'vehicle.command',{action:'lock',confirmed:true});
+ assert.equal(result.ok,false);
+ assert.equal(result.pending,true);
+ assert.match(result.error,/not verified/);
+ assert.equal(getCommands(),1,'Never retry a lock command automatically');
+});
+
+test('Failed vehicle discovery removes transient session credentials',async()=>{
+ const {storage}=launch(true,{noCars:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'mock-token',refresh_token:'mock-refresh',expires_in:900
+ }));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
+ for(const key of ['polestar.access','polestar.refresh','polestar.expires.at','vehicle.vin','polestar.c3'])
+  assert.equal(storage.getItem(key),'',key+' should be cleared');
 });
