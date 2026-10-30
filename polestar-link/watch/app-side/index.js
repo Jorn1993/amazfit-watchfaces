@@ -58,7 +58,8 @@ async function grpc(method,vin){
  const host=store().getItem('polestar.c3'),token=await accessToken();
  if(!host||!vin)throw Error('Connect to your Polestar in Zepp first');
  const isCommand=method==='Lock'||method==='Unlock';
- const request=grpcFrame(requestFor(vin,isCommand));
+ const requestId='zepp-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*0x100000000).toString(36);
+ const request=grpcFrame(requestFor(vin,isCommand,requestId));
  const path=method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':
   method==='GetLatestExterior'?'/services.vehiclestates.exterior.ExteriorService/GetLatestExterior':
   '/invocation.InvocationService/'+method;
