@@ -39,7 +39,7 @@ function mergeCookies(map,response){
 // Polestar may respond with 302 to its website containing a `resumePath`.
 // The redirect is a *hint* for the PingFederate resume endpoint, NOT a site
 // to send the password/cookies to. Keep every request on the identity origin.
-function redirectDestination(location){
+function redirectDestination(location,redirectUri){
  if(typeof location!=='string'||!location||/[\\\r\n]/.test(location))
   throw Error('Polestar redirect location missing or unsafe');
  if(location.startsWith('/')&&!location.startsWith('//'))return BASE+location;
@@ -51,7 +51,7 @@ function redirectDestination(location){
   host=tail.split('/')[0].split('?')[0].split('#')[0].split(':')[0];
   if(!/^[a-z0-9.-]+$/i.test(host))host='';
  }
- const label=host?host.slice(0,64):location.startsWith(REDIRECT)?'app-callback':'unknown';
+ const label=host?host.slice(0,64):location.startsWith(redirectUri)?'app-callback':'unknown';
  throw Error('Polestar login redirected outside identity service ('+label+')');
 }
 function resumePathFromRedirect(location){
@@ -67,7 +67,7 @@ function resumePathFromRedirect(location){
  if(!match)return '';
  return '/as/'+match[1]+'/resume/as/authorization.ping';
 }
-async function openAuthorizationPage(url,http,cookies){
+async function openAuthorizationPage(url,http,cookies,redirectUri){
  for(let count=0;count<=6;count++){
   const cookie=cookieHeader(cookies);
   const response=await http(url,'GET',cookie?{'Cookie':cookie}:{});
@@ -80,13 +80,13 @@ async function openAuthorizationPage(url,http,cookies){
   // PingFederate may immediately return the registered app callback if a
   // previous Polestar login is still valid. Treat it as an authorization
   // *result*, not as an HTTP URL to follow or a reason to submit a password.
-  if(location.startsWith(REDIRECT+'?'))
+  if(location.startsWith(redirectUri+'?'))
    return {response:null,postPath:'',callback:location};
   // No request is ever made to the website; use only the validated token.
   const postPath=resumePathFromRedirect(location);
   if(postPath)return {response:null,postPath};
   if(count===6)throw Error('Polestar authorization exceeded redirect limit');
-  url=redirectDestination(location);
+  url=redirectDestination(location,redirectUri);
  }
  throw Error('Polestar login redirect failed');
 }
@@ -120,8 +120,8 @@ async function pkceChallenge(verifier,cryptoApi){
  }
  return b64;
 }
-function parseCode(location,state){
- if(typeof location!=='string'||!location.startsWith(REDIRECT))
+function parseCode(location,state,redirectUri){
+ if(typeof location!=='string'||!location.startsWith(redirectUri+'?'))
   throw Error('Polestar returned an unexpected login redirect');
  const query=location.split('?')[1]||'';
  const fields={};
@@ -136,7 +136,12 @@ function parseCode(location,state){
  if(!fields.code||fields.code.length>4096)throw Error('Polestar did not return an authorization code');
  return fields.code;
 }
-export async function authenticatePolestar(email,password,http,cryptoApi){
+export async function authenticatePolestar(email,password,http,cryptoApi,profile='mobile'){
+ const web=profile==='mystar';
+ if(profile!=='mobile'&&!web)throw Error('Unknown Polestar login profile');
+ const clientId=web?'l3oopkc_10':CLIENT;
+ const redirectUri=web?'https://www.polestar.com/sign-in-callback':REDIRECT;
+ const scope=web?'openid profile email customer:attributes':SCOPE;
  if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||email.length>254)
   throw Error('Invalid Polestar email');
  // An already-authenticated Polestar ID session can return a mobile callback
@@ -154,16 +159,16 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
     typeof tokenEndpoint!=='string'||!tokenEndpoint.startsWith(BASE+'/'))
   throw Error('Unexpected Polestar OIDC endpoints');
  const params={
-  response_type:'code',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,
+  response_type:'code',client_id:clientId,redirect_uri:redirectUri,scope,
   state,code_challenge:challenge,code_challenge_method:'S256',response_mode:'query'
  };
  const cookies={};
- const initial=await openAuthorizationPage(authorize+'?'+encoding(params),http,cookies);
+ const initial=await openAuthorizationPage(authorize+'?'+encoding(params),http,cookies,redirectUri);
  let code;
  if(initial.callback){
   // This works with an existing active Polestar ID session in Zepp. It never
   // submits the entered password, and requires an exact CSRF state match.
-  code=parseCode(initial.callback,state);
+  code=parseCode(initial.callback,state,redirectUri);
  }else{
   const postPath=initial.postPath || (safeBody(initial.response).match(/(?:url|action)\s*:\s*"([^"]+)"/)||[])[1];
   if(!postPath||!postPath.startsWith('/')||postPath.startsWith('//')||postPath.includes('\\'))
@@ -180,7 +185,7 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
   if(response.status!==302&&response.status!==303)
    throw Error('Polestar sign-in did not return a redirect (HTTP '+response.status+')');
   let location=lookupHeader(response.headers,'location');
-  if(typeof location!=='string'||!location.startsWith(REDIRECT)){
+  if(typeof location!=='string'||!location.startsWith(redirectUri+'?')){
    // Some accounts must accept Terms & Conditions before returning an auth code.
    const uid=/[?&]uid=([^&]+)/.exec(String(location||''));
    if(!uid)throw Error('Zepp could not obtain Polestar authorization redirect');
@@ -192,12 +197,12 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
     throw Error('Polestar consent HTTP '+response.status);
    location=lookupHeader(response.headers,'location');
   }
-   code=parseCode(location,state);
+   code=parseCode(location,state,redirectUri);
  }
  const token=await http(tokenEndpoint,'POST',{
   'Content-Type':'application/x-www-form-urlencoded'
- },encoding({grant_type:'authorization_code',code,redirect_uri:REDIRECT,
-   client_id:CLIENT,code_verifier:verifier}));
+ },encoding({grant_type:'authorization_code',code,redirect_uri:redirectUri,
+   client_id:clientId,code_verifier:verifier}));
  if(token.status!==200)throw Error('Polestar token exchange HTTP '+token.status);
  const result=typeof token.body==='string'?JSON.parse(token.body):token.body;
  if(!result||typeof result.access_token!=='string'||!result.access_token)
