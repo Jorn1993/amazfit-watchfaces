@@ -109,3 +109,36 @@ for name,client,_ in CLIENTS[:2]:
         "error":str(info.get("error",""))[:80],
         # Do not print error_description; it may include request details.
     })
+
+# Test whether the client is configured for the password grant, without
+# supplying any actual account or password. Never log an attempted credential.
+for name,client,_ in CLIENTS[:2]:
+    request=urllib.request.Request(
+        BASE+"/as/token.oauth2",
+        data=urllib.parse.urlencode({
+            "grant_type":"password",
+            "client_id":client,
+            "username":"intentionally-nonexistent-probe@invalid.example",
+            "password":"invalid-non-secret-test-string",
+            "scope":"openid profile email",
+        }).encode(),
+        headers={"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        response=urllib.request.urlopen(request,timeout=15)
+    except urllib.error.HTTPError as e:
+        response=e
+    except Exception as e:
+        print("Password grant preflight",name,{"network_error":type(e).__name__})
+        continue
+    try:
+        info=json.loads(response.read(32000))
+    except Exception:
+        info={}
+    # Log only the response code/category; no tokens or request secrets.
+    print("Password grant preflight",name,{
+        "http":response.status,
+        "error":str(info.get("error",""))[:80],
+        "token_present":bool(info.get("access_token"))
+    })
