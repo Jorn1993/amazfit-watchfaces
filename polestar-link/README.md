@@ -12,6 +12,15 @@ Source code lives on `feature/polestar-link`. Do not merge as an advertised work
 - `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
 - These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
+## Current diagnostic release (source v1.3.10)
+
+- The direct Zepp app still does **not** authenticate against Polestar and is **not** a working car key.
+- The anonymous compatibility report now distinguishes HTTP reachability from real HTTP/2 gRPC support. An HTTP 200, 401, or 403 alone is **not** a verified gRPC channel.
+- The report checks whether Zepp exposes secure WebCrypto primitives required for PKCE, session cookies, and a native binary body. These checks expose no secrets.
+- An accepted lock/unlock RPC is not called successful until a subsequent exterior-state read matches the requested state. If the state cannot be verified, the watch reports an unverified command without automatically retrying.
+- Failed account discovery clears partial access/refresh tokens, VIN, and endpoint state. OAuth callbacks require an exact, nonempty `state` value.
+- Mock tests cover these conditions, but actual Zepp/Polestar compatibility still requires the owner's device.
+
 ## Current diagnostic release
 
 The watch's Status button and the Zepp settings page can perform **credential-free compatibility checks**:
