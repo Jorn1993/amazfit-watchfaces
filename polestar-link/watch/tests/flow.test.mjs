@@ -100,7 +100,7 @@ test('Personal login renders an email and a visually masked password field',()=>
  const inputs=components.filter(x=>x.name==='TextInput');
  assert.equal(inputs.length,2);
  assert.equal(inputs[0].props.label,'Polestar email');
- assert.equal(inputs[1].props.label,'Polestar password');
+ assert.equal(inputs[1].props.label,'Polestar password (optional if already signed in)');
  assert.equal(inputs[1].props.subStyle.WebkitTextSecurity,'disc');
  assert.equal(components.some(x=>x.name==='Auth'),false);
 });
