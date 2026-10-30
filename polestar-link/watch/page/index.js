@@ -61,8 +61,6 @@ Page(BasePage({
    if(i===3)this.mainMore=widget;
   });
   // Second page: eight actions, arranged in a compact 2-column grid.
-  this.moreIntro=txt('more',70,162,340,28,
-   'Remote actions require confirmation',16,PALETTE.muted);
   MORE.forEach((item,i)=>{
    const col=i%2,row=Math.floor(i/2),x=62+col*180,y=197+row*55;
    button('more',x,y,176,48,item.label,()=>{void this.arm(item.action);},
@@ -72,7 +70,6 @@ Page(BasePage({
    if(this.pending)void this.confirm();else this.setPage(0);
   },0x323839,17);
   this.moreNotice=txt('more',65,164,350,27,'',15,PALETTE.muted);
-  this.moreIntro.setProperty(ui.prop.VISIBLE,false);
   this.setPage(0);
   void this.refresh();
  },
