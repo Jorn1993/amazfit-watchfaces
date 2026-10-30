@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 33,
-      "name": "1.3.13"
+      "code": 34,
+      "name": "1.3.14"
     },
     "vender": "Personal prototype",
-    "description": "Personal Polestar login through Zepp Side Service (experimental)",
+    "description": "Experimental personal Polestar login with OIDC redirect handling",
     "icon": "icon.png"
   },
   "permissions": [
