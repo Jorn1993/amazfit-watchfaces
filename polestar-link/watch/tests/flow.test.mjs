@@ -12,7 +12,9 @@ const Button=props=>wrap('Button',props);
 const Auth=props=>wrap('Auth',props);
 const TextInput=props=>wrap('TextInput',props);
 const Link=(props,children)=>wrap('Link',props,children);
-function flatten(tree){return [tree,...(tree.children||[]).flatMap(c=>typeof c==='object'?flatten(c):[])];}
+function flatten(tree){if(!tree||typeof tree!=='object')return [];
+ const children=Array.isArray(tree.children)?tree.children:tree.children?[tree.children]:[];
+ return [tree,...children.flatMap(flatten)];}
 function msg(id,body){return Uint8Array.from([id*8+2,body.length,...body]);}
 function num(id,value){return [id*8,value];}
 function dbl(id,value){const b=new ArrayBuffer(8);new DataView(b).setFloat64(0,value,true);return [id*8+1,...new Uint8Array(b)];}
