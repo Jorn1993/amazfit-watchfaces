@@ -28,7 +28,7 @@ function launch(startImmediately=true,options={}){
   addListener(type,cb){assert.equal(type,'change');listeners.push(cb);}
  };
  let commands=0,locked=false,side,page,logins=0;
- async function fetchMock({url,body}){
+ async function fetchMock({url,body,headers={}}){
   if(url==='https://httpbin.org/cookies')
    return {status:200,body:{cookies:{zepp_probe_only:'harmless'}}};
   if(url.endsWith('/.well-known/openid-configuration'))
@@ -36,10 +36,17 @@ function launch(startImmediately=true,options={}){
   if(url.startsWith('https://polestarid.eu.polestar.com/as/authorization.oauth2?'))
    return {status:200,body:'url: "/as/aBcD/resume"',headers:{'Set-Cookie':'PF=mock-session; HttpOnly; Secure'}};
   if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:options.noCars||options.mobileEmpty?[]:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
-  if(url.includes('/mystar-v2/'))return {status:options.v2Http||200,body:{data:{getConsumerCarsV2:options.noCars||options.v2Empty?[]:[{vin,modelName:'Polestar 4',modelYear:'2026'}]}}};
+  if(url.includes('/mystar-v2/'))return {status:options.v2Http===401&&headers.Authorization==='simulated-token'&&options.rawTokenWorks?200:options.v2Http||200,body:{data:{getConsumerCarsV2:options.noCars||options.v2Empty?[]:[{vin,modelName:'Polestar 4',modelYear:'2026'}]}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
    assert.equal(typeof body,'string');
+   if(url.endsWith('/GetMyCars')){
+    if(!options.c3Cars)return {status:503,body:''};
+    const str=value=>[...String(value)].map(ch=>ch.charCodeAt(0));
+    const block=(id,data)=>[id*8+2,data.length,...data];
+    const car=block(1,[...block(1,str(vin)),...block(6,str('Polestar 4'))]);
+    return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(Uint8Array.from(block(1,car)))};
+   }
    if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
    if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,(options.staleExterior?false:locked)?2:1)))};
    if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
@@ -191,8 +198,12 @@ test('Anonymous C3 gRPC probe does not require credentials or invoke vehicle com
 
 test('Zepp settings compatibility button runs both probes without password input',async()=>{
  const {side,storage,page}=launch();
+ const toggle=flatten(page.build({settingsStorage:storage}))
+  .find(x=>x.name==='Button'&&x.props.label==='Technical details');
+ assert.ok(toggle);
+ toggle.props.onClick();
  const button=flatten(page.build({settingsStorage:storage}))
-  .find(x=>x.name==='Button'&&x.props.label==='Check Polestar compatibility');
+  .find(x=>x.name==='Button'&&x.props.label==='Run compatibility check');
  assert.ok(button);
  button.props.onClick();
  await eventually(()=>storage.getItem('polestar.probe.status')==='Polestar compatibility test completed.');
@@ -212,6 +223,9 @@ test('Successful command RPC without matching exterior state is pending, not suc
  storage.setItem('polestar.oauth.result.at',String(Date.now()));
  storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'mock-token'}));
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ // The test explicitly verifies status before allowing a command.
+ const status=await ask(side,'vehicle.status');
+ assert.equal(status.ok,true);
  const result=await ask(side,'vehicle.command',{action:'lock',confirmed:true});
  assert.equal(result.ok,false);
  assert.equal(result.pending,true);
@@ -249,7 +263,7 @@ test('When both car APIs return no cars, keep valid login and allow password-fre
  assert.equal(report.mobile_count,0);
  assert.equal(report.consumer_v2_count,0);
  const ui=flatten(page.build({settingsStorage:storage}));
- const retry=ui.find(x=>x.name==='Button'&&x.props.label==='Retry vehicle lookup (no password)');
+ const retry=ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4');
  assert.ok(retry);
  options.noCars=false;
  retry.props.onClick();
@@ -271,27 +285,19 @@ test('MyStar fallback errors show safe status without leaking vehicle details',a
  assert.doesNotMatch(JSON.stringify(report),/mock-token/);
 });
 
-test('Account-login feasibility check uses only synthetic cookie and no password',async()=>{
+test('Compact Settings hides diagnostic probes and exposes one primary action',async()=>{
  const {storage,side,page,getCommands}=launch();
- const controls=flatten(page.build({settingsStorage:storage}));
- const button=controls.find(x=>x.name==='Button'&&x.props.label==='Test login options (no password)');
- assert.ok(button,'Settings must expose a safe login transport check');
- button.props.onClick();
- await eventually(()=>storage.getItem('polestar.login.probe.status')==='Login transport check completed.');
- const report=JSON.parse(storage.getItem('polestar.login.probe.result'));
- assert.equal(report.cookie_echo_http,200);
- assert.equal(report.cookie_header_forwarded,true);
- assert.equal(report.cookie_echo_error,false);
- const browser=JSON.parse(storage.getItem('polestar.browser.probe.result'));
- assert.equal(browser.browser_polestar_readable,false,'Mock Settings browser has no native CORS-capable fetch');
- assert.equal(storage.getItem('polestar.login.request'),'','No password handoff may be created');
- assert.equal(storage.getItem('polestar.access'),'','No auth tokens may be created');
- assert.equal(getCommands(),0,'No vehicle action allowed in diagnostic mode');
- const again=await ask(side,'login.transport.preflight');
- assert.equal(again.ok,true);
- assert.equal(again.cookie_header_forwarded,true);
+ let ui=flatten(page.build({settingsStorage:storage}));
+ const buttons=ui.filter(x=>x.name==='Button').map(x=>x.props.label);
+ assert.deepEqual(buttons,['Connect to Polestar','Technical details']);
+ assert.equal(ui.filter(x=>x.name==='TextInput').length,2);
+ const response=await ask(side,'login.transport.preflight');
+ assert.equal(response.cookie_header_forwarded,true);
+ assert.equal(getCommands(),0);
+ ui.find(x=>x.name==='Button'&&x.props.label==='Technical details').props.onClick();
+ const advanced=flatten(page.build({settingsStorage:storage}));
+ assert.ok(advanced.some(x=>x.name==='Button'&&x.props.label==='Run compatibility check'));
 });
-
 test('Credentials are only submitted on explicit sign-in',async()=>{
  const {storage,page,getLogins,getCommands}=launch();
  const controls=flatten(page.build({settingsStorage:storage}));
@@ -301,7 +307,7 @@ test('Credentials are only submitted on explicit sign-in',async()=>{
  assert.equal(getLogins(),0);
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(getCommands(),0);
- const button=controls.find(x=>x.name==='Button'&&x.props.label==='Sign in to Polestar');
+ const button=controls.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar');
  button.props.onClick();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  assert.equal(getLogins(),1);
@@ -318,7 +324,7 @@ test('Failed login does not keep password or mark a car connected',async()=>{
  const inputs=controls.filter(x=>x.name==='TextInput');
  inputs[0].props.onChange('driver@example.test');
  inputs[1].props.onChange('test-password');
- controls.find(x=>x.name==='Button'&&x.props.label==='Sign in to Polestar').props.onClick();
+ controls.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar').props.onClick();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
  assert.equal(getLogins(),1);
  assert.equal(storage.getItem('polestar.login.request'),'');
@@ -326,38 +332,75 @@ test('Failed login does not keep password or mark a car connected',async()=>{
  assert.equal(storage.getItem('vehicle.vin'),'');
 });
 
-test('Official Polestar website link is present but does not claim to connect watch',()=>{
+test('Signed-in Settings does not request password again and hides advanced diagnostics',async()=>{
  const {storage,page}=launch();
- const widgets=flatten(page.build({settingsStorage:storage}));
- const links=widgets.filter(x=>x.name==='Link');
- assert.equal(links.length,1);
- assert.equal(links[0].props.source,'https://www.polestar.com/nl-be/');
- const title=widgets.filter(x=>x.name==='Text').flatMap(x=>x.children.map(String)).join(' ');
- assert.match(title,/website session is separate from the watch app/);
- assert.equal(storage.getItem('polestar.access'),'');
+ storage.setItem('polestar.access','sample-access');
+ const ui=flatten(page.build({settingsStorage:storage}));
+ assert.equal(ui.some(x=>x.name==='TextInput'&&x.props.label==='Polestar password (optional if already signed in)'),false);
+ assert.ok(ui.some(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4'));
+ assert.equal(ui.some(x=>x.name==='Button'&&x.props.label==='Run compatibility check'),false);
 });
-
-test('Existing Polestar session can be requested from Zepp without storing or submitting a password',async()=>{
+test('One Connect button supports an existing session without providing password',async()=>{
  const {storage,page,getLogins,getCommands}=launch(true,{sessionLogin:true});
  const ui=flatten(page.build({settingsStorage:storage}));
- const email=ui.find(x=>x.name==='TextInput'&&x.props.label==='Polestar email');
- email.props.onChange('driver@example.test');
- const button=ui.find(x=>x.name==='Button'&&x.props.label==='Continue with existing Polestar session');
- assert.ok(button);
+ ui.find(x=>x.name==='TextInput'&&x.props.label==='Polestar email').props.onChange('driver@example.test');
+ const button=ui.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar');
  button.props.onClick();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  assert.equal(getLogins(),1);
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(storage.getItem('vehicle.vin'),vin);
- assert.equal(getCommands(),0,'No vehicle commands should execute during login');
+ assert.equal(getCommands(),0);
 });
-
 test('Existing Polestar session requires an email but never prompts for a password',()=>{
  const {storage,page,getLogins}=launch();
  const ui=flatten(page.build({settingsStorage:storage}));
- const button=ui.find(x=>x.name==='Button'&&x.props.label==='Continue with existing Polestar session');
+ const button=ui.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar');
  button.props.onClick();
- assert.match(storage.getItem('polestar.login.status'),/Enter your Polestar email first/);
+ assert.match(storage.getItem('polestar.login.status'),/Enter your email/);
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(getLogins(),0);
+});
+
+test('C3 GetMyCars read-only fallback finds one linked car when both GraphQL lists are empty',async()=>{
+ const {storage,getCommands}=launch(true,{noCars:true,c3Cars:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const report=JSON.parse(storage.getItem('polestar.vehicle.lookup'));
+ assert.equal(report.c3_http,200);
+ assert.equal(report.c3_count,1);
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(getCommands(),0);
+});
+
+test('Secondary-car VIN entry remains unverified if Zepp cannot read gRPC bytes',async()=>{
+ const {storage,page,side,getCommands}=launch(true,{noCars:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
+ await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
+ const ui=flatten(page.build({settingsStorage:storage}));
+ const field=ui.find(x=>x.name==='TextInput'&&x.props.label==='Vehicle VIN (optional)');
+ assert.ok(field);
+ field.props.onChange(vin);
+ ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.status').includes('VIN configured'));
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(storage.getItem('vehicle.verified'),'');
+ const command=await ask(side,'vehicle.command',{action:'unlock',confirmed:true});
+ assert.equal(command.ok,false);
+ assert.match(command.error,/Verify vehicle status/);
+ assert.equal(getCommands(),0);
+});
+
+test('MyStar raw Authorization variant is tried only after 401 and can find vehicle',async()=>{
+ const {storage}=launch(true,{mobileEmpty:true,v2Http:401,rawTokenWorks:true});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const report=JSON.parse(storage.getItem('polestar.vehicle.lookup'));
+ assert.equal(report.consumer_v2_http,401);
+ assert.equal(report.consumer_v2_raw_http,200);
+ assert.equal(report.consumer_v2_count,1);
+ assert.equal(storage.getItem('vehicle.vin'),vin);
 });
