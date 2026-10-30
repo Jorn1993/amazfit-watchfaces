@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 32,
-      "name": "1.3.12"
+      "code": 33,
+      "name": "1.3.13"
     },
     "vender": "Personal prototype",
-    "description": "Official Polestar website entry point and credential-free compatibility tools",
+    "description": "Personal Polestar login through Zepp Side Service (experimental)",
     "icon": "icon.png"
   },
   "permissions": [
