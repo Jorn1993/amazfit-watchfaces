@@ -7,7 +7,11 @@ const CLIENT='lp8dyrd_10', REDIRECT='polestar-explore://explore.polestar.com';
 const SCOPE='openid profile email customer:attributes customer:attributes:write';
 const GQL='https://pc-api.polestar.com/eu-north-1/app-backend/api/graphql';
 const enc=encodeURIComponent;
-function trace(stage,detail){store().setItem('polestar.log',stage+': '+String(detail||'').slice(0,180));}
+function trace(stage,detail){
+ const message=stage+': '+String(detail||'').slice(0,160);
+ store().setItem('polestar.log',message);
+ if(stage==='AUTH'||stage==='READY'||stage==='ERROR')store().setItem('polestar.login.status',message);
+}
 function json(r){try{return typeof r.body==='string'?JSON.parse(r.body):r.body;}catch(e){return null;}}
 function header(r,key){const h=r.headers||{};return h[key]||h[key.toLowerCase()]||h[key.toUpperCase()]||'';}
 function form(obj){return Object.keys(obj).map(k=>enc(k)+'='+enc(obj[k])).join('&');}
@@ -112,34 +116,55 @@ async function grpc(method,vin){
  const messages=grpcMessages(r.body);
  return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
+let loginInFlight=false;
+async function processPendingLogin(){
+ const raw=store().getItem('polestar.login.request');
+ if(!raw || loginInFlight)return;
+ loginInFlight=true;
+ let input;
+ try{
+  // Remove the credential-bearing message before making any remote requests.
+  store().removeItem('polestar.login.request');
+  const at=Number(store().getItem('polestar.login.request.at')||0);
+  store().removeItem('polestar.login.request.at');
+  if(at && (Date.now()-at>120000 || at>Date.now()+30000))
+    throw Error('Sign-in request expired. Re-enter your password in Zepp.');
+  input=JSON.parse(raw);
+  if(!input.email||!input.password)throw Error('Email and password required');
+  trace('AUTH','Starting Polestar ID authentication');
+  const token=await authenticate(input.email,input.password);
+  input.password='';
+  trace('AUTH','Finding your car');
+  const car=await vehicles(token);
+  trace('AUTH','Finding Polestar vehicle service');
+  await endpoint(token);
+  trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
+ }catch(e){
+  trace('ERROR',String(e&&e.message||e).slice(0,140));
+ }finally{
+  if(input)input.password='';
+  loginInFlight=false;
+ }
+}
+function receiveStorageChange({key}){
+ if(key==='polestar.session.clear'){
+  for(const k of ['polestar.access','polestar.refresh','polestar.expires.at','polestar.c3','vehicle.vin','vehicle.name','polestar.login.request','polestar.login.request.at'])store().removeItem(k);
+  store().setItem('polestar.login.status','Disconnected');
+ }else if(key==='polestar.login.request'){
+  // The change payload is not uniform across Zepp builds. Read the value
+  // directly from Settings Storage instead of depending on newValue.
+  void processPendingLogin();
+ }
+}
 AppSideService(BaseSideService({
  onInit(){
-  store().addListener('change',async ({key,newValue})=>{
-   if(key==='polestar.session.clear'){
-    for(const k of ['polestar.access','polestar.refresh','polestar.expires.at','polestar.c3','vehicle.vin','vehicle.name','polestar.login.request'])store().removeItem(k);
-    store().setItem('polestar.login.status','Disconnected');return;
-   }
-   if(key!=='polestar.login.request'||!newValue)return;
-   let input;
-   try{
-    input=JSON.parse(newValue);
-    // Always clear the temporary credential message before network activity.
-    store().removeItem('polestar.login.request');
-    if(!input.email||!input.password)throw Error('Email and password required');
-    const token=await authenticate(input.email,input.password);
-    input.password='';
-    const car=await vehicles(token);
-    await endpoint(token);
-    store().setItem('polestar.login.status','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
-    trace('READY','Car connected');
-   }catch(e){
-    store().setItem('polestar.login.status',String(e.message||e).slice(0,140));
-    trace('ERROR',e.message||e);
-   }finally{if(input)input.password='';store().removeItem('polestar.login.request');}
-  });
-  // Clear credentials left by a terminated previous session rather than replay them.
-  store().removeItem('polestar.login.request');
+  store().addListener('change',receiveStorageChange);
+  store().setItem('polestar.side.ready',String(Date.now()));
+  // A settings request may have arrived while this service was asleep.
+  // Do not discard it; consume it once the side service starts.
+  void processPendingLogin();
  },
+ onRun(){void processPendingLogin();},
  async onRequest(req,res){
   try{
    if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.3.0-experimental'});return;}
