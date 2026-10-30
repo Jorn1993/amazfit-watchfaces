@@ -465,7 +465,13 @@ async function verifyVehicleStatus(){
    trace('AUTH','Live status blocked by Zepp binary transport. Text alternative: '+
     (test.http===null?'unavailable':'HTTP '+test.http+' ('+test.result+')'));
   }
- }finally{statusVerificationInFlight=false;}
+ }finally{
+  statusVerificationInFlight=false;
+  // A manual retry may arrive during an earlier in-flight verification.
+  // Finish the current call first, then process the queued request once.
+  if(s.getItem('polestar.vehicle.verify.request'))
+   void verifyVehicleStatus();
+ }
 }
 let oauthInFlight=false;
 async function processOauthResult(){
@@ -536,7 +542,8 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
-  void verifyVehicleStatus();
+  if(store().getItem('polestar.vehicle.verify.request'))
+   void verifyVehicleStatus();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
@@ -545,7 +552,8 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
-  void verifyVehicleStatus();
+  if(store().getItem('polestar.vehicle.verify.request'))
+   void verifyVehicleStatus();
  },
  async onRequest(req,res){
   try{
