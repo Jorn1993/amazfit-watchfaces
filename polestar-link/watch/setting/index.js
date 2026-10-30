@@ -13,10 +13,11 @@ AppSettingsPage({
     const email=(this.state.email||'').trim();
     if(!email||!this.state.password){s.setItem('polestar.login.status','Enter email and password');return;}
     s.setItem('polestar.email',email);
-    s.setItem('polestar.login.status','Direct Polestar authentication is not yet available in this build.');
+    s.setItem('polestar.login.status','Checking Polestar ID connection…');
+    s.setItem('polestar.login.request',String(Date.now()));
     this.state.password='';
    }}),
-   Text({paragraph:true,style:{marginTop:'16px'}},s.getItem('polestar.login.status')||'Not connected')
+   Text({paragraph:true,style:{marginTop:'16px'}},s.getItem('polestar.log')||s.getItem('polestar.login.status')||'Not connected')
   ]);
  }
 });
