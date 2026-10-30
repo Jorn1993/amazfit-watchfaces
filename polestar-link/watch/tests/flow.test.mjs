@@ -33,7 +33,7 @@ function launch(startImmediately=true){
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
    assert.equal(typeof body,'string');
-   if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+   if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
    if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,locked?2:1)))};
    if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
@@ -154,4 +154,18 @@ test('Anonymous Polestar OAuth probe checks real Zepp Fetch cookie support witho
  assert.equal('cookie' in result,false);
  assert.equal('password' in result,false);
  assert.equal(storage.getItem('polestar.access'),'');
+});
+
+test('Anonymous C3 gRPC probe does not require credentials or invoke vehicle commands',async()=>{
+ const {side,storage,getCommands}=launch();
+ const response=await ask(side,'grpc.preflight');
+ assert.equal(response.ok,true);
+ assert.equal(response.discovery_http,200);
+ assert.equal(response.grpc_http,200);
+ assert.equal(response.grpc_reached,true);
+ assert.equal(response.grpc_content_type,'application/grpc');
+ assert.equal(getCommands(),0);
+ assert.equal(storage.getItem('polestar.access'),'');
+ assert.equal('vin' in response,false);
+ assert.equal('host' in response,false);
 });
