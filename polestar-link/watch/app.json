@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 36,
-      "name": "1.3.16"
+      "code": 37,
+      "name": "1.3.17"
     },
     "vender": "Personal prototype",
-    "description": "Polestar 4 vehicle discovery via MyStar V2 and mobile API",
+    "description": "Existing Polestar session OAuth callback and vehicle discovery",
     "icon": "icon.png"
   },
   "permissions": [
