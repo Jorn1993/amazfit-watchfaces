@@ -78,3 +78,19 @@ test('Refuse authentication without platform secure randomness',async()=>{
  );
  assert.equal(trace.length,0);
 });
+
+test('Missing Polestar OAuth state is rejected before token exchange',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(...args)=>{
+  const response=await baseline(...args);
+  if(args[0].split('?')[0]===ID+'/resume'){
+   response.headers.Location='polestar-explore://explore.polestar.com?code=mock-code';
+  }
+  return response;
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /state missing or mismatched/
+ );
+ assert.equal(trace.length,3,'No token exchange on state-less redirect');
+});
