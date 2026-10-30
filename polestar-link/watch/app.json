@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 9,
-      "name": "0.7.0"
+      "code": 10,
+      "name": "0.8.0"
     },
     "vender": "Personal prototype",
-    "description": "Experimental Polestar 4 status and lock/unlock via private HTTPS gateway",
+    "description": "Direct Zepp gRPC-style POST transport probe, no vehicle commands",
     "icon": "icon.png"
   },
   "permissions": [
