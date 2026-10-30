@@ -48,12 +48,29 @@ jobs:
               names=[n for n in z.namelist() if n.endswith('.zpk')]
               if not names: raise RuntimeError('ZAB missing ZPK')
               payload=z.read(names[0])
+          # Zepp developer Scan only accepts preview-mode packages.
+          with zipfile.ZipFile(io.BytesIO(payload)) as outer:
+              contents={n:outer.read(n) for n in outer.namelist()}
+          with zipfile.ZipFile(io.BytesIO(contents['device.zip'])) as device:
+              device_contents={n:device.read(n) for n in device.namelist()}
+          manifest=json.loads(device_contents['app.json'])
+          manifest.setdefault('packageInfo',{})['mode']='preview'
+          device_contents['app.json']=json.dumps(manifest,separators=(',',':')).encode()
+          rebuilt_device=io.BytesIO()
+          with zipfile.ZipFile(rebuilt_device,'w',zipfile.ZIP_DEFLATED) as device:
+              for n,data in device_contents.items():device.writestr(n,data)
+          contents['device.zip']=rebuilt_device.getvalue()
+          rebuilt=io.BytesIO()
+          with zipfile.ZipFile(rebuilt,'w',zipfile.ZIP_DEFLATED) as outer:
+              for n,data in contents.items():outer.writestr(n,data)
+          payload=rebuilt.getvalue()
           with zipfile.ZipFile(io.BytesIO(payload)) as z:
               assert 'device.zip' in z.namelist(),'Invalid ZPK'
               with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
                   manifest=json.loads(d.read('app.json'))
                   assert manifest['app']['appId']==1098347,manifest
                   assert manifest['app']['appType']=='app',manifest
+                  assert manifest['packageInfo']['mode']=='preview',manifest
           public=Path('polestar-link/public');public.mkdir(parents=True,exist_ok=True)
           (public/'polestar-link.zpk').write_bytes(payload)
           url='zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link.zpk'
