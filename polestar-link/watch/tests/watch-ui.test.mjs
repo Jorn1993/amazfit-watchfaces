@@ -34,7 +34,7 @@ async function launch(verified=false){
  return {page,widgets,commands:()=>commands};
 }
 test('Two watch views only: main dashboard and the full C3 action grid',async()=>{
- const {page,widgets}=await launch();
+ const {page,widgets}=await launch(true);
  assert.equal(page.screen,0);
  assert.equal(widgets.filter(w=>w.type==='IMG').length,1,'real Polestar logo on watch');
  assert.equal(widgets.find(w=>w.type==='IMG').state.src,'polestar-mark.png');
