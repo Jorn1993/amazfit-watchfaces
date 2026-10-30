@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 5,
-      "name": "0.4.0"
+      "code": 6,
+      "name": "0.5.0"
     },
     "vender": "Personal prototype",
-    "description": "Experimental private gateway connection and confirmation-controlled lock/unlock",
+    "description": "Direct Zepp networking diagnostic; no vehicle control.",
     "icon": "icon.png"
   },
   "permissions": [
