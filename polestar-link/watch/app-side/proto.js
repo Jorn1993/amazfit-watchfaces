@@ -107,6 +107,42 @@ function text(data) {
   if(typeof TextDecoder!=='undefined')return new TextDecoder('utf-8').decode(data);
   return Array.from(data,b=>String.fromCharCode(b)).join('');
 }
+// car_information.CarInformation/GetMyCars (C3).
+// Response: repeated myCars field 1; each item contains car field 1
+// and linkage flags. Unlike fields(), this preserves repeated records.
+function nestedMessages(data,id){
+ const raw=bytes(data),records=[];
+ let p=0;
+ while(p<raw.length){
+  let tag;[tag,p]=readVarint(raw,p);
+  const number=Math.floor(tag/8),wire=tag%8;
+  if(!number)throw Error('Invalid car protobuf field');
+  if(wire===0){[,p]=readVarint(raw,p);}
+  else if(wire===1){p+=8;}
+  else if(wire===5){p+=4;}
+  else if(wire===2){
+   let length;[length,p]=readVarint(raw,p);
+   if(!Number.isSafeInteger(length)||length<0||p+length>raw.length)
+    throw Error('Invalid car protobuf length');
+   if(number===id)records.push(raw.slice(p,p+length));
+   p+=length;
+  }else throw Error('Unsupported car protobuf wire');
+  if(p>raw.length)throw Error('Truncated car protobuf response');
+  if(records.length>20)throw Error('Too many car records');
+ }
+ return records;
+}
+export function decodeMyCars(payload){
+ const result=[];
+ for(const entry of nestedMessages(payload,1)){
+  const attrs=fields(entry);
+  if(!(attrs[1] instanceof Uint8Array))continue;
+  const car=fields(attrs[1]),vin=text(car[1]),name=text(car[6]);
+  if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin))continue;
+  result.push({vin,content:{model:{name:name||'Polestar'}}});
+ }
+ return result;
+}
 export function decodeBattery(payload){
   const outer=fields(payload),battery=outer[3]&&fields(outer[3]);
   if(!battery)throw Error('Polestar battery data missing');
