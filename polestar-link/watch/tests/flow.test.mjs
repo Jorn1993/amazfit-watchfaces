@@ -38,7 +38,7 @@ async function fetchMock({url,method}){
   if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,locked?2:1)))};
   if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
-    return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(1,num(3,6)))};
+    return {status:200,headers:{'grpc-status':'0'},body:Uint8Array.from([...proto.grpcFrame(msg(1,num(3,1))),...proto.grpcFrame(msg(1,num(3,4))),...proto.grpcFrame(msg(1,num(3,6)))])};
   }
   throw Error('Unexpected mocked network call '+url);
 }
