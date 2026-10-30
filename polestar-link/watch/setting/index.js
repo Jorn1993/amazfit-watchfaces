@@ -73,6 +73,11 @@ AppSettingsPage({
     Text({paragraph:true},'Vehicle gRPC and commands: NOT verified'),
     report.auth_error?Text({paragraph:true,style:{color:'#a23838'}},report.auth_error):Text({},''),
     report.grpc_error?Text({paragraph:true,style:{color:'#a23838'}},report.grpc_error):Text({},''),
+    Text({bold:true,style:{marginTop:'20px'}},'Polestar account'),
+    Link({source:'https://www.polestar.com/nl-be/'},
+      Text({bold:true},'Open official Polestar site')),
+    Text({paragraph:true},
+      'This opens Polestar in your browser. The website session is separate from the watch app.'),
     Text({bold:true,style:{marginTop:'20px'}},'Account sign-in feasibility'),
     Button({label:'Test login options (no password)',style:{
       borderRadius:'12px',padding:'12px',background:'#264059',color:'#ffffff'
