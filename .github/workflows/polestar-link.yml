@@ -71,13 +71,14 @@ jobs:
                   assert manifest['app']['appId']==1098347,manifest
                   assert manifest['app']['appType']=='app',manifest
                   assert manifest['packageInfo']['mode']=='preview',manifest
-                  assert manifest['app']['version']['name']=='1.1.0',manifest
+                  assert manifest['app']['version']['name']==json.loads(Path('polestar-link/watch/app.json').read_text())['app']['version']['name'],manifest
                   assert manifest['module']['setting']['path']=='setting/index',manifest
           public=Path('polestar-link/public');public.mkdir(parents=True,exist_ok=True)
-          (public/'polestar-link-v1.1.0.zpk').write_bytes(payload)
-          url='zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-v1.1.0.zpk'
+          version=manifest['app']['version']['name']
+          (public/f'polestar-link-v{version}.zpk').write_bytes(payload)
+          url=f'zpkd1://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-v{version}.zpk'
           qr=qrcode.make(url)
-          qr.save(public/'install-qr-v1.1.0.png')
+          qr.save(public/f'install-qr-v{version}.png')
           qr.save(public/'install-qr.png')
           (public/'install-url.txt').write_text(url+'\n')
           print('Created package',len(payload),'bytes; QR payload:',url)
