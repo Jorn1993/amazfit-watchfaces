@@ -43,6 +43,9 @@ Page(BasePage({
    align_h:ui.align.CENTER_H});
   this.title=shared(ui.widget.TEXT,{x:64,y:132,w:352,h:35,
    text:'POLESTAR 4',text_size:21,color:PALETTE.muted,align_h:ui.align.CENTER_H});
+  // Small refresh action available without adding a third watch page.
+  this.refreshButton=button('main',367,130,47,36,'↻',
+   ()=>{void this.refresh();},PALETTE.surface,22);
   // Overview: large paired vehicle metrics, no invented live data.
   add('main',ui.widget.FILL_RECT,{x:56,y:171,w:368,h:110,radius:25,color:PALETTE.card});
   this.battery=txt('main',73,189,164,46,'-- %',41);
