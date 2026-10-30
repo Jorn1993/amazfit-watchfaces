@@ -127,7 +127,7 @@ AppSideService(BaseSideService({
  async onRequest(req,res){
   try{
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.5-oauth-experimental',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.6-watch-diagnostics',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
