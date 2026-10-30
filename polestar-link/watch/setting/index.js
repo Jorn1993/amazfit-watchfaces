@@ -25,7 +25,7 @@ AppSettingsPage({
           label: 'Save Polestar ID',
           onClick: () => {
             const email = (this.state.email || displayEmail).trim();
-            if (!/^\\S+@\\S+\\.\\S+$/.test(email)) {
+            if (!(email.includes('@') && email.includes('.'))) {
               storage.setItem('polestar.loginStatus', 'Enter a valid email address');
               return;
             }
