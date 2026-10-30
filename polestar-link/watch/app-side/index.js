@@ -1,10 +1,7 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
-import { sha256 } from 'js-sha256';
 import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
 const store=()=>settings.settingsStorage;
-const ID='https://polestarid.eu.polestar.com';
-const CLIENT='lp8dyrd_10', REDIRECT='polestar-explore://explore.polestar.com';
-const SCOPE='openid profile email customer:attributes customer:attributes:write';
+const CLIENT='lp8dyrd_10';
 const GQL='https://pc-api.polestar.com/eu-north-1/app-backend/api/graphql';
 const enc=encodeURIComponent;
 function trace(stage,detail){
@@ -15,52 +12,10 @@ function trace(stage,detail){
 function json(r){try{return typeof r.body==='string'?JSON.parse(r.body):r.body;}catch(e){return null;}}
 function header(r,key){const h=r.headers||{};return h[key]||h[key.toLowerCase()]||h[key.toUpperCase()]||'';}
 function form(obj){return Object.keys(obj).map(k=>enc(k)+'='+enc(obj[k])).join('&');}
-function b64(bytes){
- const abc='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';let out='';
- for(let i=0;i<bytes.length;i+=3){const a=bytes[i],b=bytes[i+1],c=bytes[i+2];out+=abc[a>>2]+abc[((a&3)<<4)|((b||0)>>4)];if(i+1<bytes.length)out+=abc[((b&15)<<2)|((c||0)>>6)];if(i+2<bytes.length)out+=abc[c&63];}
- return out;
-}
-function randomVerifier(){
- const random=typeof crypto!=='undefined'&&crypto&&crypto.getRandomValues;
- if(!random)throw Error('Secure random API unavailable in Zepp side service');
- const a=new Uint8Array(32);crypto.getRandomValues(a);return b64(a);
-}
-function codeFrom(location){const m=String(location).match(/[?&]code=([^&#]+)/);return m?decodeURIComponent(m[1]):null;}
 async function http(url,method='GET',headers={},body){
  const r=await fetch({url,method,headers,...(body===undefined?{}:{body})});
  if(typeof r.status!=='number'&&typeof r.statusCode==='number')r.status=r.statusCode;
  return r;
-}
-async function authenticate(email,password){
- trace('AUTH','OIDC discovery');
- const discovery=json(await http(ID+'/.well-known/openid-configuration'));
- if(!discovery||!discovery.authorization_endpoint||!discovery.token_endpoint)throw Error('OIDC discovery unavailable');
- const verifier=randomVerifier(),challenge=b64(sha256.array(verifier));
- const params={response_type:'code',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,state:randomVerifier(),code_challenge:challenge,code_challenge_method:'S256',response_mode:'query'};
- const query=form(params);
- trace('AUTH','Loading login session');
- const start=await http(discovery.authorization_endpoint+'?'+query);
- const html=String(start.body||'');
- const match=html.match(/(?:url|action):\s*"([^"]+)"/);
- if(!match)throw Error('Login session unavailable HTTP '+start.status);
- const resumePath=match[1];
- if(!resumePath.startsWith('/')||resumePath.startsWith('//')||resumePath.includes('\\'))throw Error('Unexpected Polestar login destination');
- const resume=ID+resumePath;
- trace('AUTH','Submitting Polestar ID');
- const response=await http(resume+'?'+query,'POST',{'Content-Type':'application/x-www-form-urlencoded'},form({'pf.username':email,'pf.pass':password}));
- const location=header(response,'location');
- const code=codeFrom(location);
- if(!code)throw Error('Authorization response HTTP '+response.status+'; redirect '+(location?'without code':'missing'));
- trace('AUTH','Exchanging authorization code');
- const tokenResponse=await http(discovery.token_endpoint,'POST',{'Content-Type':'application/x-www-form-urlencoded'},form({grant_type:'authorization_code',code,redirect_uri:REDIRECT,client_id:CLIENT,code_verifier:verifier}));
- const tokens=json(tokenResponse);
- if(!tokens||!tokens.access_token)throw Error('Token exchange HTTP '+tokenResponse.status);
- store().setItem('polestar.access',tokens.access_token);
- store().setItem('polestar.expires.at',String(Date.now()+(Number(tokens.expires_in)||3600)*1000-60000));
- if(tokens.refresh_token)store().setItem('polestar.refresh',tokens.refresh_token);
- store().setItem('polestar.token.endpoint',discovery.token_endpoint);
- trace('AUTH','Authenticated');
- return tokens.access_token;
 }
 async function accessToken(){
  const token=store().getItem('polestar.access');
@@ -117,67 +72,58 @@ async function grpc(method,vin){
  const messages=grpcMessages(r.body);
  return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
-let loginInFlight=false;
-async function processPendingLogin(){
- const raw=store().getItem('polestar.login.request');
- if(!raw || loginInFlight)return;
- loginInFlight=true;
- let input;
+let oauthInFlight=false;
+async function processOauthResult(){
+ const raw=store().getItem('polestar.oauth.result');
+ if(!raw||oauthInFlight)return;
+ oauthInFlight=true;
+ store().removeItem('polestar.oauth.result');
  try{
-  // Remove the credential-bearing message before making any remote requests.
-  store().removeItem('polestar.login.request');
-  const at=Number(store().getItem('polestar.login.request.at')||0);
-  store().removeItem('polestar.login.request.at');
-  if(at && (Date.now()-at>120000 || at>Date.now()+30000))
-    throw Error('Sign-in request expired. Re-enter your password in Zepp.');
-  input=JSON.parse(raw);
-  if(!input.email||!input.password)throw Error('Email and password required');
-  trace('AUTH','Starting Polestar ID authentication');
-  const token=await authenticate(input.email,input.password);
-  input.password='';
-  trace('AUTH','Finding your car');
-  const car=await vehicles(token);
-  trace('AUTH','Finding Polestar vehicle service');
-  await endpoint(token);
+  const value=JSON.parse(raw);
+  if(!value||!value.access_token||typeof value.access_token!=='string')
+   throw Error('Polestar did not return an access token');
+  store().setItem('polestar.access',value.access_token);
+  store().setItem('polestar.refresh',value.refresh_token||'');
+  store().setItem('polestar.expires.at',
+    String(Date.now()+(Number(value.expires_in)||3600)*1000-60000));
+  store().setItem('polestar.token.endpoint','https://polestarid.eu.polestar.com/as/token.oauth2');
+  trace('AUTH','Finding your Polestar');
+  const car=await vehicles(value.access_token);
+  trace('AUTH','Finding car connection');
+  await endpoint(value.access_token);
   trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
  }catch(e){
-  trace('ERROR',String(e&&e.message||e).slice(0,140));
- }finally{
-  if(input)input.password='';
-  loginInFlight=false;
- }
+  trace('ERROR',String(e&&e.message||e).slice(0,130));
+ }finally{oauthInFlight=false;}
 }
 function receiveStorageChange({key}={}){
  if(key==='polestar.session.clear'){
-  for(const k of ['polestar.access','polestar.refresh','polestar.expires.at','polestar.c3','vehicle.vin','vehicle.name','polestar.login.request','polestar.login.request.at'])store().removeItem(k);
-  store().setItem('polestar.login.status','Disconnected');
- }else if(key==='polestar.login.request'){
-  // The change payload is not uniform across Zepp builds. Read the value
-  // directly from Settings Storage instead of depending on newValue.
-  void processPendingLogin();
+  for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
+   'polestar.c3','vehicle.vin','vehicle.name','polestar.oauth.result',
+   'polestar.login.request','polestar.login.request.at'])
+   store().removeItem(k);
+  store().setItem('polestar.login.status','Signed out');
+ }else if(key==='polestar.oauth.result'){
+  void processOauthResult();
  }
 }
 AppSideService(BaseSideService({
- // Required by ZML settingsPlugin. Its onInit may invoke this handler
- // BEFORE our own onInit when launchReasons.settingsChanged is true.
- // Without it, ZML calls an undefined _onSettingsChange and aborts startup.
- onSettingsChange(change){
-  receiveStorageChange(change||{});
- },
+ onSettingsChange(change){receiveStorageChange(change||{});},
  onInit(){
+  // Clear legacy queued passwords from older insecure builds.
+  store().removeItem('polestar.login.request');
+  store().removeItem('polestar.login.request.at');
   store().setItem('polestar.side.ready',String(Date.now()));
-  // SettingsStorage is automatically subscribed by ZML settingsPlugin.
-  // Process a request queued while the side service was not running.
-  void processPendingLogin();
+  void processOauthResult();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
-  void processPendingLogin();
+  void processOauthResult();
  },
  async onRequest(req,res){
   try{
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.3',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.5-oauth-experimental',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
