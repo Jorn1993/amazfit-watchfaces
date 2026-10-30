@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 4,
-      "name": "0.3.0"
+      "code": 5,
+      "name": "0.4.0"
     },
     "vender": "Personal prototype",
-    "description": "Zepp-only Polestar Link connection diagnostics. Vehicle controls disabled.",
+    "description": "Experimental private gateway connection and confirmation-controlled lock/unlock",
     "icon": "icon.png"
   },
   "permissions": [
