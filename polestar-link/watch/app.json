@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 29,
-      "name": "1.3.9"
+      "code": 30,
+      "name": "1.3.10"
     },
     "vender": "Personal prototype",
-    "description": "Polestar OAuth transport and masking compatibility check; credential-free",
+    "description": "Polestar connection safety and compatibility diagnostics; credential-free",
     "icon": "icon.png"
   },
   "permissions": [
