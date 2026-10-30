@@ -55,9 +55,14 @@ Page(BasePage({
          this.show('Polestar login probe failed.\\n'+String(authProbe&&authProbe.error||'No response').slice(0,90));
          return;
        }
-       this.show('Polestar OAuth HTTP '+authProbe.auth_http+
-        '\\nLogin form: '+(authProbe.login_page?'yes':'no')+
-        '\\nSession cookies: '+(authProbe.cookie_accessible?'yes':'not available'));
+       this.show('Testing Polestar gRPC transport…');
+       let grpcProbe;
+       try{grpcProbe=await this.phoneRequest({method:'grpc.preflight'},20000);}
+       catch(e){grpcProbe={ok:false,error:String(e&&e.message||e)};}
+       this.show('Login page: '+(authProbe.login_page?'yes':'no')+
+        '\\nSession cookies: '+(authProbe.cookie_accessible?'yes':'not available')+
+        '\\ngRPC: '+(grpcProbe&&grpcProbe.grpc_reached?'reachable':
+          'not verified'));
        return;
      }
      this.show('Fetching Polestar vehicle status…');
