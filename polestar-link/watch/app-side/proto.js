@@ -26,9 +26,17 @@ export function encodeVin(vin) {
   const data = Array.from(vin, char => char.charCodeAt(0));
   return Uint8Array.from([10, ...varint(data.length), ...data]);
 }
-export function requestFor(vin, command) {
+// The BatteryService and ExteriorService requests use VehicleRequest:
+// field 1 is a request identifier, field 2 is the VIN. InvocationService
+// instead uses an inner InvocationRequest with VIN at field 1.
+export function requestFor(vin, command, requestId) {
   const inner = encodeVin(vin);
-  return command ? Uint8Array.from([10, ...varint(inner.length), ...inner]) : inner;
+  if(command) return Uint8Array.from([10, ...varint(inner.length), ...inner]);
+  const id=String(requestId||'').trim();
+  if(!/^[a-zA-Z0-9._:-]{8,100}$/.test(id))throw Error('Valid request ID required for vehicle read');
+  const idBytes=Array.from(id,ch=>ch.charCodeAt(0));
+  const vinBytes=Array.from(vin,ch=>ch.charCodeAt(0));
+  return Uint8Array.from([10,...varint(idBytes.length),...idBytes,18,...varint(vinBytes.length),...vinBytes]);
 }
 export function grpcFrame(message) {
   const len=message.length;
