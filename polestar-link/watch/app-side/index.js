@@ -1,5 +1,6 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { authenticatePolestar } from './oidc.js';
+import { encodeC3Action } from './c3-actions.js';
 import { toBase64, grpcWebMessages } from './grpc-web-text.js';
 import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation, decodeMyCars } from './proto.js';
 const store=()=>settings.settingsStorage;
@@ -267,10 +268,12 @@ function grpcStatus(r){
 async function grpc(method,vin){
  const host=store().getItem('polestar.c3'),token=await accessToken();
  if(!host||!vin)throw Error('Connect to your Polestar in Zepp first');
- const isCommand=method==='Lock'||method==='Unlock';
+ const command=method==='Lock'?'lock':method==='Unlock'?'unlock':null;
  const requestId='zepp-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*0x100000000).toString(36);
- const request=grpcFrame(requestFor(vin,isCommand,requestId));
- const path=method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':
+ const invocation=command?encodeC3Action(vin,command):null;
+ const request=grpcFrame(invocation?invocation.payload:requestFor(vin,false,requestId));
+ const path=invocation?invocation.path:
+  method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':
   method==='GetLatestExterior'?'/services.vehiclestates.exterior.ExteriorService/GetLatestExterior':
   '/invocation.InvocationService/'+method;
  // Native Zepp Fetch must preserve the binary body and support HTTP/2 for this call.
