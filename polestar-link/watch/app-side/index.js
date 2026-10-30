@@ -43,7 +43,7 @@ async function authorizationPreflight(){
  const cookieNames=Object.keys(r.headers||{}).filter(k=>k.toLowerCase()==='set-cookie');
  const rawCookie=cookieNames.length?header(r,'set-cookie'):'';
  const hasCookie=!!rawCookie;
- const resume=/(?:url|action)\\s*:\\s*["'][^"']+["']/.test(body);
+ const resume=/(?:url|action)\s*:\s*["'][^"']+["']/.test(body);
  return {
   discovery_http:configResponse.status,
   auth_http:r.status,
