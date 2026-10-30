@@ -1,61 +1,36 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
-const storage = () => settings.settingsStorage;
-function configuration() {
- const url = (storage().getItem('gateway.url') || '').trim().replace(/\/$/, '');
- const token = storage().getItem('gateway.token') || '';
- if (!url.startsWith('https://') || !token) throw Error('Configure the private connector in Zepp');
- return {url, token};
+const s=()=>settings.settingsStorage;
+function directConfig(){
+ const host=(s().getItem('direct.host')||'').trim().replace(/\/$/,'');
+ const token=s().getItem('direct.token')||'';
+ const vin=s().getItem('direct.vin')||'';
+ if(!/^https:\/\/[a-z0-9.-]+(?::443)?$/i.test(host))throw Error('Set HTTPS C3 API host');
+ if(!token)throw Error('Set access token');
+ if(!/^[a-z0-9]{17}$/i.test(vin))throw Error('Set 17-character VIN');
+ return {host,token,vin};
 }
-async function request(path, method, payload) {
- const cfg = configuration();
- const response = await fetch({
-  url: cfg.url + path,
-  method: method || 'GET',
-  headers: {'Authorization': 'Bearer ' + cfg.token, 'Content-Type': 'application/json'},
-  ...(payload ? {body: JSON.stringify(payload)} : {})
- });
- let result;
- try { result = typeof response.body === 'string' ? JSON.parse(response.body) : response.body; }
- catch (e) { throw Error('Unexpected connector response'); }
- if (response.status < 200 || response.status >= 300) throw Error(result.detail || 'HTTP ' + response.status);
- return result;
-}
-async function discover() {
- const result = await request('/api/vehicles');
- const car = result.vehicles && result.vehicles[0];
- if (!car) throw Error('No vehicles found');
- storage().setItem('vehicle.vin', car.vin);
- storage().setItem('vehicle.name', car.name || 'Polestar');
- return car;
+async function probe(){
+ const {host,token,vin}=directConfig();
+ const path=(s().getItem('direct.path')||'').trim();
+ if(!/^\/[a-zA-Z0-9._/-]+$/.test(path))throw Error('Set gRPC service/method path');
+ const r=await fetch({url:host+path,method:'POST',headers:{
+  'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,'vin':vin
+ },body:String.fromCharCode(0,0,0,0,0)});
+ return {status:r.status,bodyType:typeof r.body,headers:r.headers||{}};
 }
 AppSideService(BaseSideService({
- onInit() {
-  storage().addListener('change', async ({key}) => {
-   if (key !== 'gateway.check') return;
-   try {
-    const car = await discover();
-    storage().setItem('gateway.status', 'Connected: ' + car.name);
-   } catch (e) {
-    storage().setItem('gateway.status', String(e.message || e));
-   }
+ onInit(){
+  s().addListener('change',async ({key})=>{
+   if(key!=='direct.probe')return;
+   s().setItem('direct.result','Sending framed gRPC request…');
+   try{
+    const r=await probe();
+    s().setItem('direct.result','HTTP '+r.status+'; response '+r.bodyType+'; gRPC status not verified');
+   }catch(e){s().setItem('direct.result','Failed: '+String(e.message||e).slice(0,150));}
   });
  },
- async onRequest(req, res) {
-  try {
-   if (req.method === 'zepp.ping') { res(null, {ok:true, version:'1.0.0'}); return; }
-   let vin = storage().getItem('vehicle.vin');
-   if (!vin) vin = (await discover()).vin;
-   if (req.method === 'vehicle.status') {
-    const result = await request('/api/status/' + encodeURIComponent(vin));
-    res(null, {ok:true, ...result}); return;
-   }
-   if (req.method === 'vehicle.command') {
-    const params = req.params || {};
-    if (params.confirmed !== true || !['lock', 'unlock'].includes(params.action)) throw Error('Confirmation required');
-    const result = await request('/api/command', 'POST', {vin, action:params.action, confirmed:true});
-    res(null, {ok:result.accepted === true, ...result}); return;
-   }
-   throw Error('Unknown request');
-  } catch (e) { res(null, {ok:false, error:String(e.message || e)}); }
+ onRequest(req,res){
+  if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.1.0-experimental'});return;}
+  res(null,{ok:false,error:'Direct C3 gRPC authentication and vehicle commands are not yet implemented. Run transport probe in Zepp settings.'});
  }
 }));
