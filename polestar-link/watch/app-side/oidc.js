@@ -36,27 +36,44 @@ function mergeCookies(map,response){
  const added=cookieMap(lookupHeader(response.headers,'set-cookie'));
  for(const key of Object.keys(added))map[key]=added[key];
 }
-// Redirects may be part of Polestar's normal login. Never forward PF cookies
-// to an untrusted origin. Limit redirects and never include credential bodies.
-function identityRedirect(location){
+// Polestar may respond with 302 to its website containing a `resumePath`.
+// The redirect is a *hint* for the PingFederate resume endpoint, NOT a site
+// to send the password/cookies to. Keep every request on the identity origin.
+function redirectDestination(location){
  if(typeof location!=='string'||!location||/[\\\r\n]/.test(location))
   throw Error('Polestar redirect location missing or unsafe');
  if(location.startsWith('/')&&!location.startsWith('//'))return BASE+location;
- if(location.startsWith(BASE+'/'))return location;
+ if(location.startsWith(BASE+'/')||location===BASE)return location;
  throw Error('Polestar login redirected outside identity service');
+}
+function resumePathFromRedirect(location){
+ if(typeof location!=='string'||!location||/[\\\r\n]/.test(location))
+  throw Error('Polestar redirect location missing or unsafe');
+ // Only an official Polestar host can provide a resumePath. An external
+ // redirect with a matching query name is never trusted.
+ const official=location.startsWith(BASE+'/')||
+  /^https:\/\/(?:www\.)?polestar\.com(?:[/?#]|$)/.test(location)||
+  (location.startsWith('/')&&!location.startsWith('//'));
+ if(!official)return '';
+ const match=location.match(/[?&]resumePath=([A-Za-z0-9_-]{1,128})(?:[&#]|$)/);
+ if(!match)return '';
+ return '/as/'+match[1]+'/resume/as/authorization.ping';
 }
 async function openAuthorizationPage(url,http,cookies){
  for(let count=0;count<=6;count++){
   const cookie=cookieHeader(cookies);
   const response=await http(url,'GET',cookie?{'Cookie':cookie}:{});
   mergeCookies(cookies,response);
-  if(response.status===200)return response;
+  if(response.status===200)return {response,postPath:''};
   if(![301,302,303,307,308].includes(response.status))
    throw Error('Polestar authorization HTTP '+response.status);
-  if(count===6)throw Error('Polestar authorization exceeded redirect limit');
   const location=lookupHeader(response.headers,'location');
   if(!location)throw Error('Zepp Fetch did not expose Polestar redirect Location');
-  url=identityRedirect(location);
+  // No request is ever made to the website; use only the validated token.
+  const postPath=resumePathFromRedirect(location);
+  if(postPath)return {response:null,postPath};
+  if(count===6)throw Error('Polestar authorization exceeded redirect limit');
+  url=redirectDestination(location);
  }
  throw Error('Polestar login redirect failed');
 }
@@ -126,11 +143,11 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
  };
  const cookies={};
  const initial=await openAuthorizationPage(authorize+'?'+encoding(params),http,cookies);
- const match=safeBody(initial).match(/(?:url|action)\s*:\s*"([^"]+)"/);
- if(!match||!match[1].startsWith('/')||match[1].startsWith('//')||match[1].includes('\\'))
+ const postPath=initial.postPath || (safeBody(initial.response).match(/(?:url|action)\s*:\s*"([^"]+)"/)||[])[1];
+ if(!postPath||!postPath.startsWith('/')||postPath.startsWith('//')||postPath.includes('\\'))
   throw Error('Polestar login form missing a safe resume path');
  if(!cookieHeader(cookies))throw Error('Zepp Fetch did not expose Polestar session cookies');
- const postUrl=BASE+match[1]+'?'+encoding(params);
+ const postUrl=BASE+postPath+'?'+encoding(params);
  let response=await http(postUrl,'POST',{
   'Content-Type':'application/x-www-form-urlencoded',
   'Cookie':cookieHeader(cookies)
