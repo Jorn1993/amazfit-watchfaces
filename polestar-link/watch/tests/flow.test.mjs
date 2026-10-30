@@ -52,7 +52,19 @@ function launch(startImmediately=true){
  let side,page;
  const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:webcrypto,
    sha256:{array:input=>[...createHash('sha256').update(input).digest()]},
-   ...proto,AppSideService:o=>{side=o;},BaseSideService:o=>o,
+   ...proto,AppSideService:o=>{side=o;},BaseSideService:o=>({
+   ...o,
+   onInit(){
+     // Faithfully model ZML settingsPlugin initialization order. The plugin
+     // invokes onSettingsChange before user onInit for settingsChanged launches.
+     if(typeof o.onSettingsChange!=='function')
+       throw Error('ZML onSettingsChange undefined on settingsChanged launch');
+     storage.addListener('change',e=>o.onSettingsChange(e));
+     if(storage.getItem('polestar.login.request'))
+       o.onSettingsChange({key:'polestar.login.request',newValue:storage.getItem('polestar.login.request')});
+     o.onInit?.call(this);
+   }
+ }),
    AppSettingsPage:o=>{page=o;},View,Text,TextInput,Button,
    URL,Date,Math,JSON,ArrayBuffer,Uint8Array,TextDecoder,encodeURIComponent,decodeURIComponent,
    String,Number,Error,Promise,Array,Object,RegExp,console};
@@ -125,4 +137,15 @@ test('stale login discarded rather than sending old password after Side Service 
  await waitFor(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
  assert.match(storage.getItem('polestar.login.status'),/expired/);
  assert.equal(storage.getItem('polestar.login.request'),'');
+});
+
+test('ZML settingsChanged lifecycle handler exists, avoids native plugin startup crash',async()=>{
+ storageMap.clear();listeners.length=0;
+ const {side}=launch(false);
+ assert.equal(typeof side.onSettingsChange,'function');
+ side.onInit();
+ assert.ok(storage.getItem('polestar.side.ready'));
+ const pong=await ask(side,'zepp.ping');
+ assert.equal(pong.ok,true);
+ assert.equal(pong.auth,false);
 });
