@@ -12,6 +12,14 @@ Source code lives on `feature/polestar-link`. Do not merge as an advertised work
 - `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
 - These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
+## Personal real-account login test (v1.3.13)
+
+Zepp Settings now has editable **Polestar email** and visually masked **Polestar password** fields and a **Sign in to Polestar** button. Pressing the button sends a one-shot, timestamp-limited login request through the supported Settings Storage bridge. Side Service immediately removes the queued request and executes the previously tested PKCE authorization-code login implemented in `app-side/oidc.js`. On token response it attempts to discover the account's Polestar car; otherwise a diagnostic error is displayed. Email is remembered to make subsequent attempts easier. Password is not intentionally retained after submission.
+
+**Personal-build risk:** `settingsStorage` is persistent and holds login details briefly between Settings and Side Service; it is not a secure credentials vault. Use only on a personally controlled phone. Do not post screenshots containing an entered password or share developer logs. Do not distribute this as a consumer application.
+
+**Not hardware-verified:** This implementation has passed mocked end-to-end tests. Polestar authentication can still fail if Zepp Fetch hides redirect headers or disallows the Cookie request header, the account needs interactive MFA/consent, or Polestar changes its flow. A successful login is not proof of working HTTP/2 gRPC lock/unlock.
+
 ## Credential-free account login feasibility (source v1.3.11)
 
 The Zepp Settings screen offers **Test login options (no password)**. It runs two independent, harmless checks:
