@@ -66,7 +66,7 @@ test('Do not exchange a Polestar authorization code with mismatched OAuth state'
  const {http,trace}=fakeTransport({stateMismatch:true});
  await assert.rejects(
   authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
-  /state mismatch/
+  /state missing or mismatched/
  );
  assert.equal(trace.length,3);
 });
