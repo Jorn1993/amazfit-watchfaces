@@ -41,9 +41,6 @@ jobs:
           node --check polestar-link/watch/app.js
       - name: Test vehicle protocol codecs
         run: node --test polestar-link/watch/tests/*.test.mjs
-      - name: Probe live Polestar OIDC capabilities without credentials
-        continue-on-error: true
-        run: python polestar-link/watch/tests/oidc_preflight.py
       - name: Create icon and build app
         run: |
           node polestar-link/watch/prepare-icons.mjs
