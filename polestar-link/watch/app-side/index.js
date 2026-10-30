@@ -1,6 +1,6 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { sha256 } from 'js-sha256';
-import { requestFor, grpcFrame, grpcPayload, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
+import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
 const store=()=>settings.settingsStorage;
 const ID='https://polestarid.eu.polestar.com';
 const CLIENT='lp8dyrd_10', REDIRECT='polestar-explore://explore.polestar.com';
@@ -109,9 +109,8 @@ async function grpc(method,vin){
  },request);
  if(r.status!==200)throw Error(method+' HTTP '+r.status);
  grpcStatus(r);
- const raw=grpcPayload(r.body);
- if(!raw.length)throw Error('Polestar returned empty gRPC message');
- return {payload:raw,complete:header(r,'grpc-status')==='0'};
+ const messages=grpcMessages(r.body);
+ return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
 AppSideService(BaseSideService({
  onInit(){
