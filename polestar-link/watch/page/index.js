@@ -168,9 +168,9 @@ Page(BasePage({
    }
    const r=await this.phoneRequest({method:'vehicle.status'},20000);
    if(!r||!r.ok){this.show(String(r&&r.error||'Vehicle unavailable'));return;}
-   const battery=Number(r.battery_percent),range=Number(r.range_km);
-   if(!Number.isFinite(battery)||battery<0||battery>100||
-      !Number.isFinite(range)||range<0||range>2000){
+   const battery=r.battery_percent,range=r.range_km;
+   if(typeof battery!=='number'||!Number.isFinite(battery)||battery<0||battery>100||
+      typeof range!=='number'||!Number.isFinite(range)||range<0||range>2000){
     this.show('Vehicle values unavailable');return;
    }
    this.polestarMetrics={battery,range,charging:!!r.charging,
