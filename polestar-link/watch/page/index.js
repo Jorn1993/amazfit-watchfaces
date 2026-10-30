@@ -10,26 +10,37 @@ Page(BasePage({
   ui.createWidget(ui.widget.BUTTON,{x:110,y:352,w:260,h:62,radius:20,normal_color:0x264059,press_color:0x365b7d,text:'STATUS / CONFIRM',text_size:18,color:0xffffff,click_func:()=>this.action()});
  },
  show(t){if(!this.disposed)this.result.setProperty(ui.prop.TEXT,t);},
+ async phoneRequest(message,timeout){
+  // ZML's BasePage.request adds a device-local postMessage bridge.
+  // The actual BLE request/response is handled by messaging.request directly.
+  // Bypass the extra app-level bridge, which may not complete if the app
+  // startup hits a CommonJS module initialization error.
+  if(this.messaging && typeof this.messaging.request==='function'){
+   return this.messaging.request(message,{timeout});
+  }
+  // Fail visibly instead of remaining forever at "Checking Zepp".
+  throw Error('Zepp messaging did not initialize on the watch');
+ },
  arm(action){if(this.busy)return;this.pending={action,expires:Date.now()+10000};this.show('Confirm '+action.toUpperCase()+'?\nTap CONFIRM within 10 seconds');},
  async action(){
   if(this.busy)return;this.busy=true;
   try{
    if(this.pending && Date.now()<=this.pending.expires){
      const action=this.pending.action;this.pending=null;this.show('Sending '+action+'…');
-     const r=await this.request({method:'vehicle.command',params:{action,confirmed:true}},{timeout:60000});
+     const r=await this.phoneRequest({method:'vehicle.command',params:{action,confirmed:true}},60000);
      this.show(r&&r.ok?'Command sent\nRefresh status to verify':(r&&r.error)||'Command failed');
    }else{
      this.pending=null;
      this.show('Checking Zepp phone service…');
      let ping;
      try{
-       ping=await this.request({method:'zepp.ping'},{timeout:10000});
+       ping=await this.phoneRequest({method:'zepp.ping'},10000);
      }catch(error){
-       this.show('Phone service unavailable.\\nOpen Zepp and try again.');
+       this.show('Zepp messaging error.\\n'+String(error&&error.message||error).slice(0,95));
        return;
      }
      if(!ping||!ping.ok){
-       this.show('No response from Zepp phone.');
+       this.show('Zepp phone returned no response.');
        return;
      }
      if(!ping.auth){
@@ -37,10 +48,10 @@ Page(BasePage({
        return;
      }
      this.show('Fetching Polestar vehicle status…');
-     const r=await this.request({method:'vehicle.status'},{timeout:20000});
+     const r=await this.phoneRequest({method:'vehicle.status'},20000);
      this.show(r&&r.ok?'Battery: '+(r.battery_percent??'?')+'%\\nRange: '+(r.range_km??'?')+' km\\nLock: '+(r.lock_state||'unknown'):(r&&r.error)||'Polestar status failed');
    }
-  }catch(e){this.show('Connection timed out.\nCheck Zepp on your phone.');}
+  }catch(e){this.show('Connection error.\\n'+String(e&&e.message||e).slice(0,95));}
   finally{this.busy=false;}
  },
  onDestroy(){this.disposed=true;}
