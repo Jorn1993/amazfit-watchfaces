@@ -94,3 +94,71 @@ test('Missing Polestar OAuth state is rejected before token exchange',async()=>{
  );
  assert.equal(trace.length,3,'No token exchange on state-less redirect');
 });
+
+test('Follows an intermediate HTTP 302 and preserves Polestar session cookie before password submission',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ let redirected=false,forwarded=false;
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?')&&!redirected){
+   redirected=true;
+   return {status:302,headers:{Location:'/as/login-step','Set-Cookie':'PF=dummy-cookie; Path=/; HttpOnly'}};
+  }
+  if(url===ID+'/as/login-step'){
+   assert.equal(method,'GET');
+   assert.equal(headers.Cookie,'PF=dummy-cookie');
+   forwarded=true;
+   return {status:200,body:'url: "/resume"',headers:{}};
+  }
+  return baseline(url,method,headers,body);
+ };
+ const tokens=await authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto);
+ assert.equal(tokens.access_token,'mock-token');
+ assert.equal(redirected,true);
+ assert.equal(forwarded,true);
+ assert.equal(trace.some(x=>x.method==='POST'&&x.path===ID+'/resume'),true);
+});
+
+test('Never follow an OIDC redirect outside Polestar ID or send credentials there',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(url,method='GET',headers={},body)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?'))
+   return {status:302,headers:{Location:'https://example.org/collect','Set-Cookie':'PF=dummy-cookie'}};
+  return baseline(url,method,headers,body);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /outside identity service/
+ );
+ assert.equal(trace.length,1,'Only provider discovery is allowed');
+});
+
+test('Fail visibly if Zepp hides the Location header on an authorization redirect',async()=>{
+ const {http:baseline,trace}=fakeTransport();
+ const http=async(...args)=>{
+  if(args[0].startsWith(ID+'/as/authorization.oauth2?'))
+   return {status:302,headers:{'Set-Cookie':'PF=dummy-cookie'}};
+  return baseline(...args);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /did not expose Polestar redirect Location/
+ );
+ assert.equal(trace.length,1,'No password submitted');
+});
+
+test('Stop repeated authentication redirects instead of looping forever',async()=>{
+ const {http:baseline}=fakeTransport();
+ let redirected=0;
+ const http=async(url,...args)=>{
+  if(url.startsWith(ID+'/as/authorization.oauth2?')||url===ID+'/as/redirect-loop'){
+   redirected++;
+   return {status:302,headers:{Location:'/as/redirect-loop','Set-Cookie':'PF=dummy-cookie'}};
+  }
+  return baseline(url,...args);
+ };
+ await assert.rejects(
+  authenticatePolestar('nobody@example.invalid','fake-test-password',http,webcrypto),
+  /exceeded redirect limit/
+ );
+ assert.equal(redirected,7);
+});
