@@ -1,93 +1,73 @@
-// Zepp companion settings. No manual watch-app activation is required.
-// Email is remembered; the password is kept in this screen's memory only.
-// After successful sign-in, a renewable session avoids re-entering it.
+// Secure-login experiment: Zepp's TextInput cannot mask passwords.
+// Use the native Auth OAuth component so no password is handled by this app.
+const POLESTAR_AUTH='https://polestarid.eu.polestar.com/as/authorization.oauth2';
+const POLESTAR_TOKEN='https://polestarid.eu.polestar.com/as/token.oauth2';
+const POLESTAR_CLIENT='lp8dyrd_10';
+const POLESTAR_SCOPES='openid profile email customer:attributes customer:attributes:write';
+
+function tokenPayload(value) {
+  if(typeof value==='string')return {access_token:value};
+  if(!value||typeof value!=='object')return null;
+  // Zepp's Auth callback is provider-dependent.
+  const access=value.access_token||value.accessToken||value.token;
+  if(!access||typeof access!=='string')return null;
+  return {
+    access_token:access,
+    refresh_token:value.refresh_token||value.refreshToken||'',
+    expires_in:Number(value.expires_in||value.expiresIn||3600)
+  };
+}
 AppSettingsPage({
-  state:{email:'',password:''},
-  build(props){
-    const s=props.settingsStorage;
-    const email=s.getItem('polestar.email')||this.state.email||'';
-    this.state.email=email;
-    const connected=!!s.getItem('polestar.access')&&!!s.getItem('vehicle.vin')&&!!s.getItem('polestar.c3');
-    let status=s.getItem('polestar.login.status')||'Not connected';
-    const pending=s.getItem('polestar.login.request');
-    const requested=Number(s.getItem('polestar.login.request.at')||0);
-    if(pending&&requested&&Date.now()-requested>30000){
-      s.removeItem('polestar.login.request');
-      s.removeItem('polestar.login.request.at');
-      status='Could not reach the Zepp phone service. Please update Zepp and try again.';
-      s.setItem('polestar.login.status',status);
+ build(props) {
+  const s=props.settingsStorage;
+  const status=s.getItem('polestar.login.status')||'Not connected';
+  const vin=s.getItem('vehicle.vin');
+  const hasSession=!!s.getItem('polestar.access')&&!!vin&&!!s.getItem('polestar.c3');
+  const content=[
+   Text({bold:true,style:{fontSize:'24px',marginBottom:'12px'}},'Polestar Link'),
+   Text({paragraph:true,style:{marginBottom:'18px',color:'#555555'}},
+    'Sign in directly with Polestar. Your password never appears in this app.')
+  ];
+  if(hasSession){
+   content.push(
+    Text({bold:true,style:{fontSize:'18px'}},s.getItem('vehicle.name')||'Polestar 4'),
+    Text({paragraph:true,style:{color:'#21634c',marginTop:'8px'}},'Connected'),
+    Button({label:'Sign out',onClick:()=>{
+      s.setItem('polestar.session.clear',String(Date.now()));
+      s.setItem('polestar.login.status','Signed out');
+    }})
+   );
+  }else{
+   content.push(Auth({
+    title:'Polestar ID',
+    label:'Sign in with Polestar',
+    description:'Secure authorization through Polestar ID. No password is saved by Polestar Link.',
+    authorizeUrl:POLESTAR_AUTH,
+    requestTokenUrl:POLESTAR_TOKEN,
+    clientId:POLESTAR_CLIENT,
+    scope:POLESTAR_SCOPES,
+    pkce:true,
+    onAccessToken:value=>{
+     const tokens=tokenPayload(value);
+     if(!tokens){
+      s.setItem('polestar.login.status','Polestar login did not return a usable token.');
+      return;
+     }
+     s.setItem('polestar.login.status','Connecting your Polestar…');
+     s.setItem('polestar.oauth.result',JSON.stringify(tokens));
+    },
+    onReturn:value=>{
+     // A callback code is not proof of authentication.
+     if(!value)return;
+     s.setItem('polestar.oauth.return','Authorization page returned');
     }
-    const mainButton={borderRadius:'12px',fontSize:'16px',background:'#245d53',color:'#ffffff',padding:'12px',marginTop:'14px'};
-    const content=[
-      Text({bold:true,style:{fontSize:'24px',marginBottom:'8px'}},'Polestar Link'),
-      Text({paragraph:true,style:{marginBottom:'20px',color:'#555555'}},
-        connected?'Your Polestar is connected.':'Sign in with your Polestar ID.')
-    ];
-    if(connected){
-      content.push(
-        Text({bold:true,style:{fontSize:'19px',marginBottom:'8px'}},
-          s.getItem('vehicle.name')||'Polestar 4'),
-        Text({paragraph:true,style:{marginBottom:'12px'}},email),
-        Text({paragraph:true,style:{color:'#246b57',marginBottom:'18px'}},'Connected. You can use the watch.'),
-        Button({label:'Sign out',style:{borderRadius:'12px',padding:'10px'},
-          onClick:()=>{
-            this.state.password='';
-            s.setItem('polestar.session.clear',String(Date.now()));
-            s.setItem('polestar.login.status','Signed out');
-          }})
-      );
-    }else{
-      content.push(
-        TextInput({
-          label:'Email',
-          placeholder:'Polestar ID email',
-          settingsKey:'polestar.email',
-          value:email,
-          onChange:value=>{
-            this.state.email=String(value||'');
-            s.setItem('polestar.email',this.state.email);
-          }
-        }),
-        TextInput({
-          label:'Password',
-          placeholder:'Your Polestar ID password',
-          type:'password',
-          value:this.state.password,
-          onChange:value=>{this.state.password=String(value||'');}
-        }),
-        Button({label:'Sign in',style:mainButton,onClick:()=>{
-          const currentEmail=String(s.getItem('polestar.email')||this.state.email||'').trim();
-          const password=String(this.state.password||'');
-          if(!currentEmail||!password){
-            s.setItem('polestar.login.status','Enter your email and password.');
-            return;
-          }
-          const now=Date.now();
-          s.setItem('polestar.email',currentEmail);
-          s.setItem('polestar.login.request.at',String(now));
-          s.setItem('polestar.login.status','Signing in to Polestar…');
-          // The side service consumes this short-lived request and removes it.
-          // Do not clear the input while login is in progress.
-          const request=JSON.stringify({email:currentEmail,password});
-          s.setItem('polestar.login.request',request);
-          // A missing phone service should not leave a pending credential forever.
-          if(typeof setTimeout==='function'){
-            setTimeout(()=>{
-              if(s.getItem('polestar.login.request')!==request)return;
-              s.removeItem('polestar.login.request');
-              s.removeItem('polestar.login.request.at');
-              s.setItem('polestar.login.status',
-                'Zepp could not start its phone service. Please update Zepp and try again.');
-            },30000);
-          }
-        }})
-      );
-      if(status.startsWith('AUTH:')||status.startsWith('ERROR:')||status.startsWith('READY:')){
-        content.push(Text({paragraph:true,style:{marginTop:'16px'}},status.replace(/^(AUTH|ERROR|READY): /,'')));
-      }else{
-        content.push(Text({paragraph:true,style:{marginTop:'16px',color:'#555555'}},status));
-      }
-    }
-    return View({style:{padding:'22px',background:'#ffffff'}},content);
+   }));
   }
+  content.push(Text({paragraph:true,style:{marginTop:'20px',color:'#666666'}},status));
+  if(!hasSession){
+   content.push(Text({paragraph:true,style:{fontSize:'12px',marginTop:'8px',color:'#888888'}},
+    'Experimental: Polestar may reject Zepp\'s OAuth callback. Authentication is not yet verified.'));
+  }
+  return View({style:{padding:'22px',background:'#ffffff'}},content);
+ }
 });
