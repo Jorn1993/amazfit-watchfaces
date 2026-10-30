@@ -11,6 +11,7 @@ function encoding(input){
  return Object.keys(input).map(k=>encodeURIComponent(k)+'='+encodeURIComponent(input[k])).join('&');
 }
 function lookupHeader(headers,key){
+ if(headers&&typeof headers.get==='function')return headers.get(key)||'';
  for(const name of Object.keys(headers||{})){
   if(name.toLowerCase()===key.toLowerCase())return headers[name];
  }
