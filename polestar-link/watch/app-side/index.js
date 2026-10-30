@@ -10,7 +10,12 @@ function trace(stage,detail){
  if(stage==='AUTH'||stage==='READY'||stage==='ERROR')store().setItem('polestar.login.status',message);
 }
 function json(r){try{return typeof r.body==='string'?JSON.parse(r.body):r.body;}catch(e){return null;}}
-function header(r,key){const h=r.headers||{};return h[key]||h[key.toLowerCase()]||h[key.toUpperCase()]||'';}
+function header(r,key){
+ const h=r.headers||{};
+ const target=String(key).toLowerCase();
+ for(const k of Object.keys(h))if(k.toLowerCase()===target)return h[k]||'';
+ return '';
+}
 function form(obj){return Object.keys(obj).map(k=>enc(k)+'='+enc(obj[k])).join('&');}
 async function http(url,method='GET',headers={},body){
  const r=await fetch({url,method,headers,...(body===undefined?{}:{body})});
