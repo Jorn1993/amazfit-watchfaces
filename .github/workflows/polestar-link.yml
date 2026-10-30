@@ -63,6 +63,16 @@ jobs:
               assert 'device.zip' in entries,'No watch component'
               phone_entries=[n for n in entries if 'side' in n.lower() or 'setting' in n.lower() or 'phone' in n.lower()]
               print('PHONE/SERVICE COMPONENTS:',phone_entries)
+              for name in phone_entries:
+                  try:
+                      with zipfile.ZipFile(io.BytesIO(archive.read(name))) as phone:
+                          print('PHONE ZIP ENTRIES:',phone.namelist())
+                          for entry in phone.namelist():
+                              if entry.endswith('.json'):
+                                  print('PHONE JSON:',entry,phone.read(entry)[:2200])
+                  except zipfile.BadZipFile:
+                      print('PHONE COMPONENT NOT ZIP:',name)
+
           # Zepp developer Scan only accepts preview-mode packages.
           with zipfile.ZipFile(io.BytesIO(payload)) as outer:
               contents={n:outer.read(n) for n in outer.namelist()}
