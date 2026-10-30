@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import * as proto from '../app-side/proto.js';
 import * as webtext from '../app-side/grpc-web-text.js';
+import * as c3Actions from '../app-side/c3-actions.js';
 
 const vin='YSMABCDE0R0000001';
 const wrap=(name,props={},children=[])=>({name,props,children});
@@ -64,7 +65,7 @@ function launch(startImmediately=true,options={}){
  }
  const sideCode=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const settingsCode=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
- const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,...webtext,
+ const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,...webtext,...c3Actions,
   authenticatePolestar:async(email,password)=>{
    logins++;
    assert.equal(email,'driver@example.test');
