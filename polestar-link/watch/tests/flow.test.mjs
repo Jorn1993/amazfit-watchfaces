@@ -357,7 +357,7 @@ test('Existing Polestar session requires an email but never prompts for a passwo
  const ui=flatten(page.build({settingsStorage:storage}));
  const button=ui.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar');
  button.props.onClick();
- assert.match(storage.getItem('polestar.login.status'),/Enter your email/);
+ assert.match(storage.getItem('polestar.login.status'),/Enter your Polestar email/);
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(getLogins(),0);
 });
