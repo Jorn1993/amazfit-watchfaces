@@ -147,6 +147,33 @@ async function grpc(method,vin){
  const messages=grpcMessages(r.body);
  return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
+let probeInFlight=false;
+async function processConnectionProbe(){
+ const request=store().getItem('polestar.probe.request');
+ if(!request||probeInFlight)return;
+ probeInFlight=true;
+ store().removeItem('polestar.probe.request');
+ const result={auth_http:null,login_page:false,cookie_accessible:false,
+  grpc_http:null,grpc_reached:false,auth_error:'',grpc_error:''};
+ try{
+  store().setItem('polestar.probe.status','Checking Polestar login session…');
+  try{
+   const a=await authorizationPreflight();
+   result.auth_http=a.auth_http;
+   result.login_page=a.login_page;
+   result.cookie_accessible=a.cookie_accessible;
+  }catch(e){result.auth_error=String(e&&e.message||e).slice(0,100);}
+  store().setItem('polestar.probe.status','Checking Polestar vehicle API…');
+  try{
+   const g=await grpcTransportPreflight();
+   result.grpc_http=g.grpc_http||null;
+   result.grpc_reached=!!g.grpc_reached;
+   result.grpc_error=g.error||'';
+  }catch(e){result.grpc_error=String(e&&e.message||e).slice(0,100);}
+  store().setItem('polestar.probe.result',JSON.stringify(result));
+  store().setItem('polestar.probe.status','Polestar compatibility test completed.');
+ }finally{probeInFlight=false;}
+}
 let oauthInFlight=false;
 async function processOauthResult(){
  const raw=store().getItem('polestar.oauth.result');
@@ -184,6 +211,8 @@ function receiveStorageChange({key}={}){
   store().setItem('polestar.login.status','Signed out');
  }else if(key==='polestar.oauth.result'){
   void processOauthResult();
+ }else if(key==='polestar.probe.request'){
+  void processConnectionProbe();
  }
 }
 AppSideService(BaseSideService({
@@ -194,10 +223,12 @@ AppSideService(BaseSideService({
   store().removeItem('polestar.login.request.at');
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
+  void processConnectionProbe();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
+  void processConnectionProbe();
  },
  async onRequest(req,res){
   try{
