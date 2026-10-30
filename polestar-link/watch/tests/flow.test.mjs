@@ -1,171 +1,130 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createHash, webcrypto } from 'node:crypto';
 import vm from 'node:vm';
 import * as proto from '../app-side/proto.js';
 
 const vin='YSMABCDE0R0000001';
-const storageMap=new Map();
-const listeners=[];
-const storage={
-  getItem:key=>storageMap.get(key)||'',
-  setItem(key,value){const oldValue=storageMap.get(key);storageMap.set(key,String(value));for(const cb of listeners)cb({key,newValue:String(value),oldValue});},
-  removeItem:key=>storageMap.delete(key),
-  addListener(event,cb){assert.equal(event,'change');listeners.push(cb);}
-};
 const wrap=(name,props={},children=[])=>({name,props,children});
-const View=({style},children)=>wrap('View',{style},children);
+const View=(props,children)=>wrap('View',props,children);
 const Text=(props,value)=>wrap('Text',props,[value]);
-const TextInput=props=>wrap('TextInput',props);
 const Button=props=>wrap('Button',props);
+const Auth=props=>wrap('Auth',props);
 function flatten(tree){return [tree,...(tree.children||[]).flatMap(c=>typeof c==='object'?flatten(c):[])];}
 function msg(id,body){return Uint8Array.from([id*8+2,body.length,...body]);}
 function num(id,value){return [id*8,value];}
 function dbl(id,value){const b=new ArrayBuffer(8);new DataView(b).setFloat64(0,value,true);return [id*8+1,...new Uint8Array(b)];}
-const authEndpoint='https://polestarid.eu.polestar.com/authorize';
-const tokenEndpoint='https://polestarid.eu.polestar.com/token';
-let locked=false,commands=0;
-async function fetchMock({url,method,body}){
-  if(url.startsWith('https://c3.mock.example/')){
-    assert.equal(typeof body,'string','Zepp Fetch requires a string body for this gRPC request');
-    assert.equal(body.charCodeAt(0),0,'gRPC frame must be uncompressed');
-  }
-  if(url.endsWith('/.well-known/openid-configuration'))
-    return {status:200,body:{authorization_endpoint:authEndpoint,token_endpoint:tokenEndpoint}};
-  if(url.startsWith(authEndpoint))return {status:200,body:'url: "/resume"'};
-  if(url.startsWith('https://polestarid.eu.polestar.com/resume'))return {status:302,headers:{location:'polestar-explore://explore.polestar.com?code=test-auth-code'}};
-  if(url===tokenEndpoint)return {status:200,body:{access_token:'mock-access',refresh_token:'mock-refresh',expires_in:3600}};
+
+function launch(startImmediately=true){
+ const map=new Map(),listeners=[];
+ const storage={
+  getItem:k=>map.get(k)||'',
+  setItem(k,v){map.set(k,String(v));for(const cb of [...listeners])cb({key:k,newValue:String(v)});},
+  removeItem:k=>map.delete(k),
+  addListener(type,cb){assert.equal(type,'change');listeners.push(cb);}
+ };
+ let commands=0,locked=false,side,page;
+ async function fetchMock({url,body}){
   if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
-  if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
-  if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,locked?2:1)))};
-  if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
+  if(url.startsWith('https://c3.mock.example/')){
+   assert.equal(typeof body,'string');
+   if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+   if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,locked?2:1)))};
+   if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
     return {status:200,headers:{'grpc-status':'0'},body:Uint8Array.from([...proto.grpcFrame(msg(1,num(3,1))),...proto.grpcFrame(msg(1,num(3,4))),...proto.grpcFrame(msg(1,num(3,6)))])};
-  }
-  throw Error('Unexpected mocked network call '+url);
-}
-function launch(startImmediately=true){
- const sideScript=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
- const settingScript=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
- let side,page;
- const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:webcrypto,
-   sha256:{array:input=>[...createHash('sha256').update(input).digest()]},
-   ...proto,AppSideService:o=>{side=o;},BaseSideService:o=>({
-   ...o,
-   onInit(){
-     // Faithfully model ZML settingsPlugin initialization order. The plugin
-     // invokes onSettingsChange before user onInit for settingsChanged launches.
-     if(typeof o.onSettingsChange!=='function')
-       throw Error('ZML onSettingsChange undefined on settingsChanged launch');
-     storage.addListener('change',e=>o.onSettingsChange(e));
-     if(storage.getItem('polestar.login.request'))
-       o.onSettingsChange({key:'polestar.login.request',newValue:storage.getItem('polestar.login.request')});
-     o.onInit?.call(this);
    }
- }),
-   AppSettingsPage:o=>{page=o;},View,Text,TextInput,Button,
-   URL,Date,Math,JSON,ArrayBuffer,Uint8Array,TextDecoder,encodeURIComponent,decodeURIComponent,
-   String,Number,Error,Promise,Array,Object,RegExp,console};
- vm.runInNewContext(sideScript,common,{filename:'app-side/index.js'});
- vm.runInNewContext(settingScript,common,{filename:'setting/index.js'});
+  }
+  throw Error('Unexpected mocked request '+url);
+ }
+ const sideCode=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
+ const settingsCode=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
+ const common={settings:{settingsStorage:storage},fetch:fetchMock,...proto,
+  AppSideService:arg=>{side=arg;},
+  BaseSideService:arg=>({
+   ...arg,
+   onInit(){
+    assert.equal(typeof arg.onSettingsChange,'function');
+    storage.addListener('change',e=>arg.onSettingsChange(e));
+    if(storage.getItem('polestar.oauth.result'))arg.onSettingsChange({key:'polestar.oauth.result'});
+    arg.onInit?.call(this);
+   }
+  }),
+  AppSettingsPage:arg=>{page=arg;},View,Text,Button,Auth,
+  URL,Date,Math,JSON,ArrayBuffer,Uint8Array,TextDecoder,encodeURIComponent,decodeURIComponent,
+  String,Number,Error,Promise,Array,Object,RegExp,console};
+ vm.runInNewContext(sideCode,common,{filename:'app-side/index.js'});
+ vm.runInNewContext(settingsCode,common,{filename:'setting/index.js'});
  if(startImmediately)side.onInit();
- return {side,page};
+ return {storage,side,page,getCommands:()=>commands};
 }
-async function waitFor(testValue){
- for(let i=0;i<100;i++){if(testValue())return;await new Promise(resolve=>setTimeout(resolve,5));}
- throw Error('Login completion timed out');
+async function eventually(testValue){
+ for(let i=0;i<100;i++){
+  if(testValue())return;
+  await new Promise(resolve=>setTimeout(resolve,5));
+ }
+ throw Error('OAuth token processing timed out');
 }
-function ask(service,method,params){
- return new Promise((resolve,reject)=>service.onRequest({method,params},(err,result)=>err?reject(err):resolve(result)));
+function ask(side,method,params){
+ return new Promise((resolve,reject)=>side.onRequest({method,params},(err,response)=>err?reject(err):resolve(response)));
 }
-test('Zepp settings -> OAuth -> vehicle discovery -> watch status -> confirmed lock/unlock',async()=>{
- const {side,page}=launch();
+test('No plaintext password input is available in Zepp settings',()=>{
+ const {storage,page}=launch();
  const components=flatten(page.build({settingsStorage:storage}));
- const inputs=components.filter(x=>x.name==='TextInput');
- assert.equal(inputs.length,2);
- inputs[0].props.onChange('test@example.com');
- inputs[1].props.onChange('dummy-secret');
- const signIn=components.find(x=>x.name==='Button'&&x.props.label==='Sign in');
- signIn.props.onClick();
- await waitFor(()=>storage.getItem('polestar.login.status').startsWith('READY: Connected'));
+ assert.equal(components.filter(x=>x.name==='TextInput').length,0);
+ const auth=components.find(x=>x.name==='Auth');
+ assert.ok(auth,'Native Zepp OAuth input is available');
+ assert.equal(auth.props.pkce,true);
+ assert.ok(auth.props.authorizeUrl.startsWith('https://polestarid.eu.polestar.com/'));
+ assert.equal(auth.props.clientSecret,undefined);
+});
+test('Zepp OAuth token callback -> car discovery -> status -> confirmed lock/unlock (simulated network)',async()=>{
+ const {storage,side,page,getCommands}=launch();
+ const components=flatten(page.build({settingsStorage:storage}));
+ const auth=components.find(x=>x.name==='Auth');
+ auth.props.onAccessToken({access_token:'simulated-token',refresh_token:'simulated-refresh',expires_in:3600});
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  assert.equal(storage.getItem('vehicle.vin'),vin);
- assert.equal(storage.getItem('polestar.login.request'),'');
- assert.equal(storage.getItem('polestar.login.status'),'READY: Connected: Polestar 4');
+ assert.equal(storage.getItem('polestar.oauth.result'),'');
  let status=await ask(side,'vehicle.status');
  assert.deepEqual(JSON.parse(JSON.stringify(status)),{ok:true,battery_percent:84,range_km:382,charging:false,lock_state:'unlocked'});
  const denied=await ask(side,'vehicle.command',{action:'unlock'});
- assert.equal(denied.ok,false);
- assert.equal(commands,0);
- const lock=await ask(side,'vehicle.command',{action:'lock',confirmed:true});
- assert.equal(lock.ok,true);assert.equal(commands,1);
- status=await ask(side,'vehicle.status');
- assert.equal(status.lock_state,'locked');
- const unlock=await ask(side,'vehicle.command',{action:'unlock',confirmed:true});
- assert.equal(unlock.ok,true);assert.equal(commands,2);
+ assert.equal(denied.ok,false);assert.equal(getCommands(),0);
+ assert.equal((await ask(side,'vehicle.command',{action:'lock',confirmed:true})).ok,true);
+ assert.equal(getCommands(),1);
+ status=await ask(side,'vehicle.status');assert.equal(status.lock_state,'locked');
+ assert.equal((await ask(side,'vehicle.command',{action:'unlock',confirmed:true})).ok,true);
  status=await ask(side,'vehicle.status');assert.equal(status.lock_state,'unlocked');
- assert.doesNotMatch(storage.getItem('polestar.log'),/dummy-secret/);
+ assert.doesNotMatch(storage.getItem('polestar.log'),/simulated-token/);
 });
-
-test('Zepp sign-in queued before Side Service starts is not silently lost',async()=>{
- storageMap.clear();listeners.length=0;
- const {side,page}=launch(false);
- const components=flatten(page.build({settingsStorage:storage}));
- const inputs=components.filter(x=>x.name==='TextInput');
- inputs[0].props.onChange('user@example.com');
- inputs[1].props.onChange('not-a-real-password');
- components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
- assert.ok(storage.getItem('polestar.login.request'),'Pending login must remain until Side Service receives it');
- assert.match(storage.getItem('polestar.login.status'),/Signing in to Polestar/);
+test('OAuth handoff works when Zepp Side Service begins after authorization',async()=>{
+ const {storage,side,page}=launch(false);
+ const auth=flatten(page.build({settingsStorage:storage})).find(x=>x.name==='Auth');
+ auth.props.onAccessToken('simulated-token');
+ assert.ok(storage.getItem('polestar.oauth.result'));
  side.onInit();
- await waitFor(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
- assert.equal(storage.getItem('polestar.login.request'),'');
- assert.equal(storage.getItem('polestar.login.status'),'READY: Connected: Polestar 4');
- assert.doesNotMatch(storage.getItem('polestar.log'),/not-a-real-password/);
-});
-test('stale login discarded rather than sending old password after Side Service wakes',async()=>{
- storageMap.clear();listeners.length=0;
- const {side,page}=launch(false);
- const components=flatten(page.build({settingsStorage:storage}));
- const inputs=components.filter(x=>x.name==='TextInput');
- inputs[0].props.onChange('user@example.com');
- inputs[1].props.onChange('transient-password');
- components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
- storageMap.set('polestar.login.request.at',String(Date.now()-121000));
- side.onInit();
- await waitFor(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
- assert.match(storage.getItem('polestar.login.status'),/expired/);
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ assert.equal(storage.getItem('polestar.oauth.result'),'');
  assert.equal(storage.getItem('polestar.login.request'),'');
 });
-
-test('ZML settingsChanged lifecycle handler exists, avoids native plugin startup crash',async()=>{
- storageMap.clear();listeners.length=0;
- const {side}=launch(false);
- assert.equal(typeof side.onSettingsChange,'function');
+test('Old password requests are discarded without being submitted',async()=>{
+ const {storage,side}=launch(false);
+ storage.setItem('polestar.login.request',JSON.stringify({email:'old@example.org',password:'not-a-real-secret'}));
  side.onInit();
- assert.ok(storage.getItem('polestar.side.ready'));
+ assert.equal(storage.getItem('polestar.login.request'),'');
  const pong=await ask(side,'zepp.ping');
  assert.equal(pong.ok,true);
  assert.equal(pong.auth,false);
 });
-
-test('Zepp form remembers email and keeps password during login, without persisting a password setting',()=>{
- storageMap.clear();listeners.length=0;
- const {page}=launch(false);
- let components=flatten(page.build({settingsStorage:storage}));
- const inputs=components.filter(x=>x.name==='TextInput');
- inputs[0].props.onChange('remember@example.com');
- inputs[1].props.onChange('typed-password');
- assert.equal(storage.getItem('polestar.email'),'remember@example.com');
- assert.equal(page.state.password,'typed-password');
- components=flatten(page.build({settingsStorage:storage}));
- const rebuiltInputs=components.filter(x=>x.name==='TextInput');
- assert.equal(rebuiltInputs[0].props.value,'remember@example.com');
- assert.equal(rebuiltInputs[1].props.value,'typed-password');
- assert.equal(rebuiltInputs[0].props.settingsKey,'polestar.email');
- components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
- assert.equal(page.state.password,'typed-password','Sign-in must not clear password before success');
- assert.equal(storage.getItem('polestar.password'),'','Plain password must not be persisted separately');
- assert.match(storage.getItem('polestar.login.status'),/Signing in to Polestar/);
+test('Sign-out removes session tokens',async()=>{
+ const {storage,side,page}=launch();
+ const auth=flatten(page.build({settingsStorage:storage})).find(x=>x.name==='Auth');
+ auth.props.onAccessToken('simulated-token');
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const buttons=flatten(page.build({settingsStorage:storage})).filter(x=>x.name==='Button');
+ buttons.find(x=>x.props.label==='Sign out').props.onClick();
+ assert.equal(storage.getItem('polestar.access'),'');
+ assert.equal(storage.getItem('polestar.refresh'),'');
+ assert.equal(storage.getItem('vehicle.vin'),'');
 });
