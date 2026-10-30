@@ -112,7 +112,7 @@ test('Personal login renders an email and a visually masked password field',()=>
  const inputs=components.filter(x=>x.name==='TextInput');
  assert.equal(inputs.length,2);
  assert.equal(inputs[0].props.label,'Polestar email');
- assert.equal(inputs[1].props.label,'Polestar password (optional if already signed in)');
+ assert.equal(inputs[1].props.label,'Polestar password');
  assert.equal(inputs[1].props.subStyle.WebkitTextSecurity,'disc');
  assert.equal(components.some(x=>x.name==='Auth'),false);
 });
@@ -336,7 +336,7 @@ test('Signed-in Settings does not request password again and hides advanced diag
  const {storage,page}=launch();
  storage.setItem('polestar.access','sample-access');
  const ui=flatten(page.build({settingsStorage:storage}));
- assert.equal(ui.some(x=>x.name==='TextInput'&&x.props.label==='Polestar password (optional if already signed in)'),false);
+ assert.equal(ui.some(x=>x.name==='TextInput'&&x.props.label==='Polestar password'),false);
  assert.ok(ui.some(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4'));
  assert.equal(ui.some(x=>x.name==='Button'&&x.props.label==='Run compatibility check'),false);
 });
@@ -418,7 +418,7 @@ test('Native binary failure probes read-only Web text and keeps lock blocked',as
   ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
   await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
   flatten(page.build({settingsStorage:storage}))
-   .find(x=>x.name==='Button'&&x.props.label==='Verify vehicle connection').props.onClick();
+   .find(x=>x.name==='Button'&&x.props.label==='Check vehicle connection').props.onClick();
   await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
   const r=JSON.parse(storage.getItem('polestar.webtext.probe'));
   assert.equal(r.http,supported?200:415);
@@ -459,7 +459,7 @@ test('VIN entry automatically runs text transport diagnostic and exposes a resul
  assert.equal(storage.getItem('polestar.vehicle.verify.status'),'text_http_error');
  const shown=flatten(page.build({settingsStorage:storage}));
  const text=shown.filter(x=>x.name==='Text').map(x=>x.children.join(' ')).join(' | ');
- assert.match(text,/gRPC-Web text: HTTP 415/);
+ assert.match(text,/Alternative transport unavailable/);
  assert.equal(storage.getItem('vehicle.verified'),'');
  assert.equal(getCommands(),0);
 });
@@ -495,4 +495,21 @@ test('Reference additional C3 actions never report verified physical effects fro
   assert.match(result.error,/not yet verified/);
  }
  assert.equal(getCommands(),5);
+});
+
+test('Zepp login shows email and one-shot masked password after closing native input popup',()=>{
+ const {storage,page}=launch(false);
+ let ui=flatten(page.build({settingsStorage:storage}));
+ ui.find(x=>x.name==='TextInput'&&x.props.label==='Polestar email')
+  .props.onChange('driver@example.test');
+ ui.find(x=>x.name==='TextInput'&&x.props.label==='Polestar password')
+  .props.onChange('test-password');
+ ui=flatten(page.build({settingsStorage:storage}));
+ const visible=ui.filter(x=>x.name==='Text').map(x=>x.children.join(' ')).join(' | ');
+ assert.match(visible,/Email: driver@example.test/);
+ assert.match(visible,/Password: •••••••• \(entered\)/);
+ assert.doesNotMatch(visible,/test-password/);
+ assert.equal(storage.getItem('polestar.email'),'driver@example.test');
+ assert.equal(storage.getItem('polestar.password'),'');
+ assert.equal(storage.getItem('polestar.login.request'),'');
 });
