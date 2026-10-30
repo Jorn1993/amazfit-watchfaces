@@ -26,7 +26,11 @@ function dbl(id,value){const b=new ArrayBuffer(8);new DataView(b).setFloat64(0,v
 const authEndpoint='https://polestarid.eu.polestar.com/authorize';
 const tokenEndpoint='https://polestarid.eu.polestar.com/token';
 let locked=false,commands=0;
-async function fetchMock({url,method}){
+async function fetchMock({url,method,body}){
+  if(url.startsWith('https://c3.mock.example/')){
+    assert.equal(typeof body,'string','Zepp Fetch requires a string body for this gRPC request');
+    assert.equal(body.charCodeAt(0),0,'gRPC frame must be uncompressed');
+  }
   if(url.endsWith('/.well-known/openid-configuration'))
     return {status:200,body:{authorization_endpoint:authEndpoint,token_endpoint:tokenEndpoint}};
   if(url.startsWith(authEndpoint))return {status:200,body:'url: "/resume"'};
