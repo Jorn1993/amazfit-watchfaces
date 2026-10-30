@@ -10,6 +10,7 @@ The official Zepp developer QR requires `zeus preview` on the **watch source pro
 npm install -g @zeppos/zeus-cli
 cd polestar-link/watch
 npm install
+node prepare-icons.mjs
 zeus login
 zeus preview
 ```
