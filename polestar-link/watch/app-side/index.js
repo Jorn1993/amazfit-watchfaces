@@ -323,7 +323,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.14-oidc-redirects',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.15-polestar-resume-path',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
