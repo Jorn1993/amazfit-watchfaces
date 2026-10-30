@@ -73,21 +73,24 @@ async function eventually(testValue){
 function ask(side,method,params){
  return new Promise((resolve,reject)=>side.onRequest({method,params},(err,response)=>err?reject(err):resolve(response)));
 }
-test('No plaintext password input is available in Zepp settings',()=>{
+test('Zepp login never renders real password input or broken OAuth redirect',()=>{
  const {storage,page}=launch();
  const components=flatten(page.build({settingsStorage:storage}));
- assert.equal(components.filter(x=>x.name==='TextInput').length,0);
- const auth=components.find(x=>x.name==='Auth');
- assert.ok(auth,'Native Zepp OAuth input is available');
- assert.equal(auth.props.pkce,true);
- assert.ok(auth.props.authorizeUrl.startsWith('https://polestarid.eu.polestar.com/'));
- assert.equal(auth.props.clientSecret,undefined);
+ const inputs=components.filter(x=>x.name==='TextInput');
+ assert.equal(inputs.length,1,'Only non-secret mask preview is present');
+ assert.equal(inputs[0].props.disabled,true);
+ assert.equal(inputs[0].props.value,'Demo123!');
+ assert.equal(inputs[0].props.subStyle.WebkitTextSecurity,'disc');
+ assert.equal(components.some(x=>x.name==='Auth'),false);
 });
+
 test('Zepp OAuth token callback -> car discovery -> status -> confirmed lock/unlock (simulated network)',async()=>{
  const {storage,side,page,getCommands}=launch();
  const components=flatten(page.build({settingsStorage:storage}));
- const auth=components.find(x=>x.name==='Auth');
- auth.props.onAccessToken({access_token:'simulated-token',refresh_token:'simulated-refresh',expires_in:3600});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'simulated-token',refresh_token:'simulated-refresh',expires_in:3600
+ }));
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  assert.equal(storage.getItem('vehicle.vin'),vin);
  assert.equal(storage.getItem('polestar.oauth.result'),'');
@@ -104,8 +107,8 @@ test('Zepp OAuth token callback -> car discovery -> status -> confirmed lock/unl
 });
 test('OAuth handoff works when Zepp Side Service begins after authorization',async()=>{
  const {storage,side,page}=launch(false);
- const auth=flatten(page.build({settingsStorage:storage})).find(x=>x.name==='Auth');
- auth.props.onAccessToken('simulated-token');
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token'}));
  assert.ok(storage.getItem('polestar.oauth.result'));
  side.onInit();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
@@ -123,8 +126,8 @@ test('Old password requests are discarded without being submitted',async()=>{
 });
 test('Sign-out removes session tokens',async()=>{
  const {storage,side,page}=launch();
- const auth=flatten(page.build({settingsStorage:storage})).find(x=>x.name==='Auth');
- auth.props.onAccessToken('simulated-token');
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token'}));
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  const buttons=flatten(page.build({settingsStorage:storage})).filter(x=>x.name==='Button');
  buttons.find(x=>x.props.label==='Sign out').props.onClick();
@@ -168,4 +171,20 @@ test('Anonymous C3 gRPC probe does not require credentials or invoke vehicle com
  assert.equal(storage.getItem('polestar.access'),'');
  assert.equal('vin' in response,false);
  assert.equal('host' in response,false);
+});
+
+test('Zepp settings compatibility button runs both probes without password input',async()=>{
+ const {side,storage,page}=launch();
+ const button=flatten(page.build({settingsStorage:storage}))
+  .find(x=>x.name==='Button'&&x.props.label==='Check Polestar compatibility');
+ assert.ok(button);
+ button.props.onClick();
+ await eventually(()=>storage.getItem('polestar.probe.status')==='Polestar compatibility test completed.');
+ const report=JSON.parse(storage.getItem('polestar.probe.result'));
+ assert.equal(report.auth_http,200);
+ assert.equal(report.login_page,true);
+ assert.equal(report.cookie_accessible,true);
+ assert.equal(report.grpc_reached,true);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(storage.getItem('polestar.access'),'');
 });
