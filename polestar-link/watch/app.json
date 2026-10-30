@@ -5,8 +5,8 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 2,
-      "name": "0.2.0"
+      "code": 3,
+      "name": "0.2.1"
     },
     "vender": "Personal prototype",
     "description": "Zepp-only Polestar Link demo; no vehicle commands enabled.",
