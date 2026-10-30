@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 16,
-      "name": "1.0.0"
+      "code": 17,
+      "name": "1.1.0"
     },
     "vender": "Personal prototype",
-    "description": "Polestar 4 status and lock/unlock through private HTTPS connector",
+    "description": "Experimental direct C3 gRPC transport probe in Zepp",
     "icon": "icon.png"
   },
   "permissions": [
