@@ -12,6 +12,16 @@ Source code lives on `feature/polestar-link`. Do not merge as an advertised work
 - `pypolestar/pypolestar`, `kildahldev/unofficial-polestar-api`, and `kaohlive/Polestar` use a different path: **scripted OAuth authorization-code/PKCE**, including provider cookies, form resume path, login redirect, code exchange, and refresh tokens. We ported that into `app-side/oidc.js` with mock tests. **It remains disabled until we can safely obtain credentials and show that Zepp Fetch exposes the needed cookies/redirects.**
 - These same integrations use a true **HTTP/2 gRPC** client for vehicle control; Zepp's Side Service documents HTTP Fetch but does not guarantee the binary gRPC features. Never assume HTTP 200 alone confirms a vehicle command.
 
+## Zepp-only transport limitation and diagnostic (v1.3.19)
+
+The owner tested v1.3.18 on their real Polestar 4. Polestar ID OAuth succeeds, but the official cloud account list is empty (mobile GraphQL HTTP 200, zero cars) and MyStar V2 is unauthorized (Bearer and raw header both 401). C3 car list returns HTTP 200 but the Zepp Fetch response cannot be decoded as binary protobuf. The owner then configured their private VIN locally and attempted a live status read; native gRPC failed with **"Fetch corrupted binary gRPC payload; a native HTTP/2 transport is required"**. This proves neither car status nor commands work end-to-end through Zepp's current native Fetch. It does **not** indicate the owner's actual vehicle is absent.
+
+Zepp official Fetch API supports `url, method, headers, body`, without documenting an ArrayBuffer/responseType option. gRPC-Web's text variant is an ASCII/Base64 wire format usable over HTTP/1.1 or HTTP/2, but it **requires C3 server-side support or a translating proxy**. Version 1.3.19 includes a single **read-only** battery call in `application/grpc-web-text+proto` after native status parsing fails. It reports HTTP status, response content-type, and whether a real battery frame could be decoded, without logging raw responses, tokens, VINs or passwords. It **never attempts lock/unlock over gRPC-Web text** and does not mark the vehicle command channel verified.
+
+Zepp Settings now wraps each control in its own full-width block View to prevent the previous inline headings/button overlap. The new transport details remain collapsed under Technical details.
+
+If C3 does not support gRPC-Web text, and Zepp cannot receive native binary gRPC, a Zepp-only lock/unlock app is blocked by network capabilities. Do not repeatedly send credential requests or call a configured VIN a connected car.
+
 ## First authenticated Polestar 4 device test and vehicle lookup (v1.3.16)
 
 On 30 October 2026, a real Android Zepp v1.3.15 test reached the authenticated `vehicles(token)` stage and returned `No Polestar vehicles found`. The owner also demonstrated that their Polestar 4 is linked in the official Polestar app. This is strong evidence that OAuth/PKCE login and code exchange succeeded, **not** evidence that the account lacks a car.
