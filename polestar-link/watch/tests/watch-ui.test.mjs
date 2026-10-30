@@ -3,73 +3,87 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 
-function launch(nativeVerified=false){
- const source=readFileSync(new URL('../page/index.js',import.meta.url),'utf8')
-  .replace(/^import .*;\s*$/gm,'');
- let page,commands=0;
- const widgets=[];
- const ui={widget:{TEXT:'TEXT',BUTTON:'BUTTON'},prop:{TEXT:'TEXT'},
-  align:{CENTER_H:'CENTER'},text_style:{WRAP:'WRAP'},
-  createWidget(type,properties){
-   const state={...properties};
-   const el={type,state,setProperty(name,value){state[name==='TEXT'?'text':name]=value;}};
-   widgets.push(el);return el;
+async function launch(verified=false){
+ let page,commands=0;const widgets=[];
+ const ui={widget:{TEXT:'TEXT',BUTTON:'BUTTON',FILL_RECT:'RECT',IMG:'IMG'},
+  prop:{TEXT:'TEXT',VISIBLE:'VISIBLE'},align:{CENTER_H:'CENTER'},
+  text_style:{WRAP:'WRAP'},
+  createWidget(type,props){
+   const w={type,state:{...props},visible:true,
+    setProperty(prop,value){if(prop==='VISIBLE')this.visible=!!value;
+     else this.state[prop.toLowerCase()]=value;}};
+   widgets.push(w);return w;
   }};
- vm.runInNewContext(source,{ui,BasePage:x=>x,Page:x=>{page=x;},Date,Math,Error,String});
- page.messaging={request:async x=>{
-  if(x.method==='vehicle.capabilities')
+ const src=readFileSync(new URL('../page/index.js',import.meta.url),'utf8')
+  .replace(/^import .*;\s*$/gm,'');
+ vm.runInNewContext(src,{ui,Page:x=>{page=x;},BasePage:x=>x,
+  Date,Math,Error,String,Number},{filename:'watch/page/index.js'});
+ page.messaging={request:async (message)=>{
+  if(message.method==='vehicle.capabilities')
    return {ok:true,authenticated:true,vehicle_configured:true,
-    native_verified:nativeVerified};
-  if(x.method==='vehicle.status')
-   return {ok:false,error:'No real battery result'};
-  if(x.method==='vehicle.command'){
-   commands++;
-   return {ok:false,error:'Command outcome not independently verified'};
+    native_verified:verified};
+  if(message.method==='vehicle.status')return {ok:true,
+   battery_percent:77,range_km:340,charging:true,lock_state:'locked'};
+  if(message.method==='vehicle.command'){
+   commands++;return {ok:false,pending:true,error:'Command outcome not independently verified'};
   }
-  throw Error('Unexpected method '+x.method);
+  throw Error('Unexpected watch request');
  }};
  page.build();
- const controls=widgets.filter(x=>x.type==='BUTTON');
- return {page,widgets,controls,commands:()=>commands};
+ for(let i=0;i<6;i++)await Promise.resolve();
+ return {page,widgets,commands:()=>commands};
 }
-test('Watch C3 UI exposes the full safety-gated basic control catalogue',()=>{
- const {page,controls}=launch();
- const pairs=[];
- for(let i=0;i<6;i++){
-  pairs.push([controls[0].state.text,controls[1].state.text]);
-  page.next();
- }
- assert.deepEqual(pairs,[
-  ['REFRESH','CONTROLS'],['LOCK','UNLOCK'],['TRUNK','FLASH'],
-  ['START','STOP'],['OPEN ALL','CLOSE ALL'],['HONK','BOTH']
+test('Two watch views only: main dashboard and the full C3 action grid',async()=>{
+ const {page,widgets}=await launch();
+ assert.equal(page.screen,0);
+ assert.equal(widgets.filter(w=>w.type==='IMG').length,1,'real Polestar logo on watch');
+ assert.equal(widgets.find(w=>w.type==='IMG').state.src,'polestar-mark.png');
+ assert.equal(page.state.battery,77);
+ assert.equal(page.state.range,340);
+ assert.equal(page.battery.state.text,'77 %');
+ assert.equal(page.range.state.text,'340 km');
+ assert.equal(page.widgets.main.some(w=>w.state.text==='LOCK'),true);
+ page.setPage(1);
+ assert.equal(page.screen,1);
+ assert.ok(page.widgets.main.every(w=>w.visible===false));
+ assert.ok(page.widgets.more.every(w=>w.visible===true));
+ const actions=page.widgets.more.filter(w=>w.type==='BUTTON').map(w=>w.state.text);
+ assert.deepEqual(actions,[
+  'TRUNK','FLASH','HONK','HONK + FLASH',
+  'OPEN WINDOWS','CLOSE WINDOWS','CLIMATE ON','CLIMATE OFF','BACK'
  ]);
+ page.setPage(0);
+ assert.equal(page.screen,0);
+ assert.ok(page.widgets.more.every(w=>w.visible===false));
 });
-test('Unverified C3 transport prevents sending a single physical command',async()=>{
- const {page,controls,commands}=launch(false);
- page.next();
- await page.arm('unlock');
- assert.equal(page.pending,null);
- assert.match(page.result.state.text,/Remote controls unavailable/);
- await page.footerAction();
+test('Unverified native C3 blocks every physical control',async()=>{
+ const {page,commands}=await launch(false);
+ page.setPage(1);
+ for(const action of ['trunk_unlock','flash','honk','honk_flash',
+  'windows_open','windows_close','climate_start','climate_stop']){
+  await page.arm(action);
+  assert.equal(page.pending,null);
+ }
  assert.equal(commands(),0);
+ assert.match(page.moreNotice.state.text,/unavailable/);
 });
-test('When native C3 is verified, every command still needs a separate confirmation',async()=>{
- const {page,controls,commands}=launch(true);
- page.next();
- await page.arm('lock');
- assert.equal(page.pending.action,'lock');
- assert.equal(controls[2].state.text,'CONFIRM ACTION');
+test('Verified C3 still needs a second explicit confirmation',async()=>{
+ const {page,commands}=await launch(true);
+ page.setPage(1);
+ await page.arm('trunk_unlock');
+ assert.equal(page.pending.action,'trunk_unlock');
+ assert.equal(page.backButton.state.text,'CONFIRM');
  assert.equal(commands(),0);
- await page.footerAction();
+ await page.confirm();
  assert.equal(commands(),1);
- assert.match(page.result.state.text,/not independently verified/);
+ assert.match(page.moreNotice.state.text,/not independently verified/);
 });
-test('Control request expires without network side effect',async()=>{
- const {page,commands}=launch(true);
- page.next();
- await page.arm('lock');
+test('Expired confirmation cannot send a command',async()=>{
+ const {page,commands}=await launch(true);
+ page.setPage(1);
+ await page.arm('windows_open');
  page.pending.expires=Date.now()-1;
- await page.footerAction();
+ await page.confirm();
  assert.equal(commands(),0);
- assert.match(page.result.state.text,/expired/);
+ assert.match(page.moreNotice.state.text,/expired/);
 });
