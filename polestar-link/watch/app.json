@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 31,
-      "name": "1.3.11"
+      "code": 32,
+      "name": "1.3.12"
     },
     "vender": "Personal prototype",
-    "description": "Credential-free Polestar login feasibility checks",
+    "description": "Official Polestar website entry point and credential-free compatibility tools",
     "icon": "icon.png"
   },
   "permissions": [
