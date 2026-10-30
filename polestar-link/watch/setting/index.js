@@ -31,6 +31,8 @@ AppSettingsPage({
   const session=!!s.getItem('polestar.access')&&!!s.getItem('vehicle.vin')&&!!s.getItem('polestar.c3');
   let report={};
   try{report=JSON.parse(s.getItem('polestar.probe.result')||'{}');}catch(e){}
+  let lookup={};
+  try{lookup=JSON.parse(s.getItem('polestar.vehicle.lookup')||'{}');}catch(e){}
   let loginReport={},browserReport={};
   try{loginReport=JSON.parse(s.getItem('polestar.login.probe.result')||'{}');}catch(e){}
   try{browserReport=JSON.parse(s.getItem('polestar.browser.probe.result')||'{}');}catch(e){}
@@ -49,7 +51,7 @@ AppSettingsPage({
   }else{
    content.push(
     Text({paragraph:true,style:{marginBottom:'16px'}},
-     'Polestar rejected the original login redirect. Checking whether a direct, secure connection can work entirely inside Zepp.'),
+     'Testing direct Polestar account login and vehicle discovery in Zepp.'),
     Button({label:'Check Polestar compatibility',style:{
       borderRadius:'12px',padding:'12px',background:'#245d53',color:'#ffffff'
      },onClick:()=>{
@@ -72,6 +74,27 @@ AppSettingsPage({
     Text({paragraph:true},'Vehicle gRPC and commands: NOT verified'),
     report.auth_error?Text({paragraph:true,style:{color:'#a23838'}},report.auth_error):Text({},''),
     report.grpc_error?Text({paragraph:true,style:{color:'#a23838'}},report.grpc_error):Text({},''),
+    s.getItem('polestar.access')?
+      Text({bold:true,style:{marginTop:'18px',color:'#236956'}},
+        'Polestar ID: signed in'):Text({},''),
+    s.getItem('polestar.access')?
+      Button({label:'Retry vehicle lookup (no password)',style:{
+       borderRadius:'12px',padding:'12px',background:'#245d53',color:'#ffffff'
+      },onClick:()=>{
+       s.setItem('polestar.login.status','AUTH: Looking for linked Polestar cars…');
+       s.setItem('polestar.vehicle.discovery.request',String(Date.now()));
+      }}):Text({},''),
+    lookup.mobile_http!==null&&lookup.mobile_http!==undefined?
+     Text({paragraph:true},'Mobile car API: HTTP '+lookup.mobile_http+
+       ', vehicles '+Number(lookup.mobile_count||0)+', response '+lookup.mobile_shape):Text({},''),
+    lookup.consumer_v2_http!==null&&lookup.consumer_v2_http!==undefined?
+     Text({paragraph:true},'MyStar V2 API: HTTP '+lookup.consumer_v2_http+
+       ', vehicles '+Number(lookup.consumer_v2_count||0)+', response '+lookup.consumer_v2_shape):Text({},''),
+    s.getItem('polestar.access')?
+      Button({label:'Sign out',onClick:()=>{
+       s.setItem('polestar.session.clear',String(Date.now()));
+       s.setItem('polestar.login.status','Signed out');
+      }}):Text({},''),
     Text({bold:true,style:{marginTop:'20px'}},'Connect your Polestar account'),
     Text({paragraph:true},'Personal experimental login using Polestar ID. Your password is cleared from the form after submission.'),
     TextInput({label:'Polestar email',value:loginEmail||s.getItem('polestar.email')||'',
