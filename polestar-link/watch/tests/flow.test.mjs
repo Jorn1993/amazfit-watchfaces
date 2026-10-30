@@ -117,7 +117,7 @@ test('Zepp sign-in queued before Side Service starts is not silently lost',async
  inputs[1].props.onChange('not-a-real-password');
  components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
  assert.ok(storage.getItem('polestar.login.request'),'Pending login must remain until Side Service receives it');
- assert.match(storage.getItem('polestar.login.status'),/Waiting for Zepp service/);
+ assert.match(storage.getItem('polestar.login.status'),/Signing in to Polestar/);
  side.onInit();
  await waitFor(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
  assert.equal(storage.getItem('polestar.login.request'),'');
@@ -148,4 +148,24 @@ test('ZML settingsChanged lifecycle handler exists, avoids native plugin startup
  const pong=await ask(side,'zepp.ping');
  assert.equal(pong.ok,true);
  assert.equal(pong.auth,false);
+});
+
+test('Zepp form remembers email and keeps password during login, without persisting a password setting',()=>{
+ storageMap.clear();listeners.length=0;
+ const {page}=launch(false);
+ let components=flatten(page.build({settingsStorage:storage}));
+ const inputs=components.filter(x=>x.name==='TextInput');
+ inputs[0].props.onChange('remember@example.com');
+ inputs[1].props.onChange('typed-password');
+ assert.equal(storage.getItem('polestar.email'),'remember@example.com');
+ assert.equal(page.state.password,'typed-password');
+ components=flatten(page.build({settingsStorage:storage}));
+ const rebuiltInputs=components.filter(x=>x.name==='TextInput');
+ assert.equal(rebuiltInputs[0].props.value,'remember@example.com');
+ assert.equal(rebuiltInputs[1].props.value,'typed-password');
+ assert.equal(rebuiltInputs[0].props.settingsKey,'polestar.email');
+ components.find(x=>x.name==='Button'&&x.props.label==='Sign in').props.onClick();
+ assert.equal(page.state.password,'typed-password','Sign-in must not clear password before success');
+ assert.equal(storage.getItem('polestar.password'),'','Plain password must not be persisted separately');
+ assert.match(storage.getItem('polestar.login.status'),/Signing in to Polestar/);
 });
