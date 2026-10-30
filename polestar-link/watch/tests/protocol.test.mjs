@@ -23,7 +23,7 @@ test('gRPC frame round-trip and corrupt frame rejection',()=>{
   assert.deepEqual(grpcPayload(grpcFrame(message)),message);
   assert.throws(()=>grpcPayload(Uint8Array.of(0,0,0,0,6,1)),/size/);
   assert.throws(()=>grpcPayload(Uint8Array.of(1,0,0,0,0)),/Compressed/);
-  assert.throws(()=>bytes('\\uFFFD'),/corrupted/);
+  assert.throws(()=>bytes(String.fromCharCode(0xfffd)),/corrupted/);
 });
 test('Battery values decode from Polestar C3 double fields',()=>{
   assert.deepEqual(decodeBattery(battery(68.5,315.7)),{battery_percent:69,range_km:316,charging:true});
