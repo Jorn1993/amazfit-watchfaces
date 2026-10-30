@@ -43,6 +43,22 @@ export function grpcPayload(data) {
   if(n>1048576 || n+5>raw.length) throw Error('Invalid gRPC response size');
   return raw.slice(5,5+n);
 }
+// Lock/unlock use server-streamed invocations: SENT -> DELIVERED -> SUCCESS.
+export function grpcMessages(data) {
+ const raw=bytes(data),messages=[];
+ let p=0;
+ while(p<raw.length){
+  if(p+5>raw.length)throw Error('Truncated gRPC stream');
+  if(raw[p]!==0)throw Error('Compressed gRPC response unsupported');
+  const n=(raw[p+1]*16777216+raw[p+2]*65536+raw[p+3]*256+raw[p+4])>>>0;
+  p+=5;
+  if(n>1048576||p+n>raw.length)throw Error('Truncated gRPC frame');
+  messages.push(raw.slice(p,p+n));p+=n;
+  if(messages.length>64)throw Error('gRPC stream has too many messages');
+ }
+ if(!messages.length)throw Error('Empty gRPC stream');
+ return messages;
+}
 function readVarint(data,index) {
   let result=0,mul=1;
   for(let count=0;count<10;count++){
