@@ -1,7 +1,6 @@
 // Polestar ID OIDC/PKCE direct-flow client, derived from the public protocol
 // described in pypolestar/pypolestar and kaohlive/Polestar (Homey).
-// Not enabled in the UI until Zepp credential masking and cookie transport
-// have been verified on the user's device.
+// Experimental personal-use login; physical Zepp networking is not yet proven.
 // SECURITY: no plaintext credentials or auth codes in errors, logs or storage.
 const BASE='https://polestarid.eu.polestar.com';
 const CLIENT='lp8dyrd_10';
@@ -36,6 +35,30 @@ function cookieHeader(map){return Object.keys(map).map(key=>key+'='+map[key]).jo
 function mergeCookies(map,response){
  const added=cookieMap(lookupHeader(response.headers,'set-cookie'));
  for(const key of Object.keys(added))map[key]=added[key];
+}
+// Redirects may be part of Polestar's normal login. Never forward PF cookies
+// to an untrusted origin. Limit redirects and never include credential bodies.
+function identityRedirect(location){
+ if(typeof location!=='string'||!location||/[\\\r\n]/.test(location))
+  throw Error('Polestar redirect location missing or unsafe');
+ if(location.startsWith('/')&&!location.startsWith('//'))return BASE+location;
+ if(location.startsWith(BASE+'/'))return location;
+ throw Error('Polestar login redirected outside identity service');
+}
+async function openAuthorizationPage(url,http,cookies){
+ for(let count=0;count<=6;count++){
+  const cookie=cookieHeader(cookies);
+  const response=await http(url,'GET',cookie?{'Cookie':cookie}:{});
+  mergeCookies(cookies,response);
+  if(response.status===200)return response;
+  if(![301,302,303,307,308].includes(response.status))
+   throw Error('Polestar authorization HTTP '+response.status);
+  if(count===6)throw Error('Polestar authorization exceeded redirect limit');
+  const location=lookupHeader(response.headers,'location');
+  if(!location)throw Error('Zepp Fetch did not expose Polestar redirect Location');
+  url=identityRedirect(location);
+ }
+ throw Error('Polestar login redirect failed');
 }
 function randomBase64Url(cryptoApi){
  if(!cryptoApi||typeof cryptoApi.getRandomValues!=='function')
@@ -102,9 +125,7 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
   state,code_challenge:challenge,code_challenge_method:'S256',response_mode:'query'
  };
  const cookies={};
- const initial=await http(authorize+'?'+encoding(params));
- mergeCookies(cookies,initial);
- if(initial.status!==200)throw Error('Polestar authorization HTTP '+initial.status);
+ const initial=await openAuthorizationPage(authorize+'?'+encoding(params),http,cookies);
  const match=safeBody(initial).match(/(?:url|action)\s*:\s*"([^"]+)"/);
  if(!match||!match[1].startsWith('/')||match[1].startsWith('//')||match[1].includes('\\'))
   throw Error('Polestar login form missing a safe resume path');
