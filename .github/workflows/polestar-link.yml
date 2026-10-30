@@ -77,7 +77,7 @@ jobs:
           with zipfile.ZipFile(io.BytesIO(payload)) as z:
               with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as device:
                   print('DEVICE ENTRIES:',device.namelist())
-                  scripts=[n for n in device.namelist() if n.endswith('.js')]
+                  scripts=[n for n in device.namelist() if n.endswith('.js') or n.endswith('.bin')]
                   for script in scripts:
                       b=device.read(script)
                       for needle in (b'module.exports',b'.exports=',b'exports=',b'exports.',b'require('):
@@ -86,6 +86,10 @@ jobs:
                               print('JS PROBE',script,needle.decode(),i,
                                     repr(b[max(0,i-130):i+170]))
                       print('DEVICE SCRIPT SIZE',script,len(b))
+                      import re
+                      strings=[m.group().decode('ascii','ignore') for m in re.finditer(rb'[ -~]{5,}',b)]
+                      print('DEVICE PRINTABLE STRINGS',script,strings[:80])
+                      print('DEVICE WATCH KEYWORDS',script,[x[:200] for x in strings if 'exports' in x or 'module' in x or 'error' in x][:40])
           # The Zepp phone service must be in preview mode as well as the watch.
           # Previously only device.zip was converted, leaving app-side.zip in
           # production mode. That produced a watch UI without a live companion.
