@@ -147,7 +147,7 @@ async function processPendingLogin(){
   loginInFlight=false;
  }
 }
-function receiveStorageChange({key}){
+function receiveStorageChange({key}={}){
  if(key==='polestar.session.clear'){
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at','polestar.c3','vehicle.vin','vehicle.name','polestar.login.request','polestar.login.request.at'])store().removeItem(k);
   store().setItem('polestar.login.status','Disconnected');
@@ -158,17 +158,27 @@ function receiveStorageChange({key}){
  }
 }
 AppSideService(BaseSideService({
+ // Required by ZML settingsPlugin. Its onInit may invoke this handler
+ // BEFORE our own onInit when launchReasons.settingsChanged is true.
+ // Without it, ZML calls an undefined _onSettingsChange and aborts startup.
+ onSettingsChange(change){
+  receiveStorageChange(change||{});
+ },
  onInit(){
-  store().addListener('change',receiveStorageChange);
   store().setItem('polestar.side.ready',String(Date.now()));
-  // A settings request may have arrived while this service was asleep.
-  // Do not discard it; consume it once the side service starts.
+  // SettingsStorage is automatically subscribed by ZML settingsPlugin.
+  // Process a request queued while the side service was not running.
   void processPendingLogin();
  },
- onRun(){void processPendingLogin();},
+ onRun(){
+  store().setItem('polestar.side.ready',String(Date.now()));
+  void processPendingLogin();
+ },
  async onRequest(req,res){
   try{
-   if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.3.0-experimental'});return;}
+   if(req.method==='zepp.ping'){
+    res(null,{ok:true,version:'1.3.3',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+   }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
    if(req.method==='vehicle.status'){
