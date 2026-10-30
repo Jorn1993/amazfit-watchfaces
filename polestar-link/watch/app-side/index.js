@@ -78,7 +78,11 @@ async function processOauthResult(){
  if(!raw||oauthInFlight)return;
  oauthInFlight=true;
  store().removeItem('polestar.oauth.result');
+ const started=Number(store().getItem('polestar.oauth.result.at')||0);
+ store().removeItem('polestar.oauth.result.at');
  try{
+  if(!started||started>Date.now()+30000||Date.now()-started>120000)
+   throw Error('OAuth handoff expired. Please sign in again securely.');
   const value=JSON.parse(raw);
   if(!value||!value.access_token||typeof value.access_token!=='string')
    throw Error('Polestar did not return an access token');
@@ -99,7 +103,7 @@ async function processOauthResult(){
 function receiveStorageChange({key}={}){
  if(key==='polestar.session.clear'){
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
-   'polestar.c3','vehicle.vin','vehicle.name','polestar.oauth.result',
+   'polestar.c3','vehicle.vin','vehicle.name','polestar.oauth.result','polestar.oauth.result.at',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
