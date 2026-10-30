@@ -139,8 +139,11 @@ function parseCode(location,state){
 export async function authenticatePolestar(email,password,http,cryptoApi){
  if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||email.length>254)
   throw Error('Invalid Polestar email');
- if(typeof password!=='string'||password.length<1)
-  throw Error('Polestar password is missing');
+ // An already-authenticated Polestar ID session can return a mobile callback
+ // without any password. Require the password only if the provider actually
+ // presents a login form; never submit an empty password.
+ if(password!==undefined&&password!==''&&typeof password!=='string')
+  throw Error('Invalid Polestar password');
  const verifier=randomBase64Url(cryptoApi),state=randomBase64Url(cryptoApi);
  const challenge=await pkceChallenge(verifier,cryptoApi);
  const discovery=await http(BASE+'/.well-known/openid-configuration');
@@ -166,6 +169,8 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
   if(!postPath||!postPath.startsWith('/')||postPath.startsWith('//')||postPath.includes('\\'))
    throw Error('Polestar login form missing a safe resume path');
   if(!cookieHeader(cookies))throw Error('Zepp Fetch did not expose Polestar session cookies');
+  if(typeof password!=='string'||!password)
+   throw Error('No active Polestar login session. Enter your password to sign in.');
   const postUrl=BASE+postPath+'?'+encoding(params);
   let response=await http(postUrl,'POST',{
    'Content-Type':'application/x-www-form-urlencoded',
