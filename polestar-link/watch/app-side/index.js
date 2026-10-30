@@ -55,7 +55,10 @@ async function authorizationPreflight(){
   login_page:resume,
   cookie_accessible:hasCookie,
   redirect_status:r.status>=300&&r.status<400,
-  binary_transport:'not tested'
+  binary_transport:'not tested',
+  pkce_secure_crypto:typeof crypto!=='undefined' && !!crypto &&
+    typeof crypto.getRandomValues==='function' && !!crypto.subtle &&
+    typeof crypto.subtle.digest==='function'
  };
 }
 // Credential-free gRPC network feasibility test. Sends an empty protobuf frame
@@ -81,13 +84,17 @@ async function grpcTransportPreflight(){
    grpc_http:r.status,
    grpc_status:String(header(r,'grpc-status')||'unavailable').slice(0,15),
    grpc_content_type:String(header(r,'content-type')||'not exposed').split(';')[0].slice(0,40),
-   grpc_body_type:ArrayBuffer.isView(r.body)?'bytes':typeof r.body,
+   grpc_body_type:ArrayBuffer.isView(r.body)?'bytes':
+     r.body instanceof ArrayBuffer?'arraybuffer':typeof r.body,
+   grpc_binary_readable:r.body instanceof ArrayBuffer||ArrayBuffer.isView(r.body),
+   // Anonymous HTTP replies never prove HTTP/2 gRPC trailers or streaming.
+   grpc_verified:false,
    // HTTP 401/403 or gRPC status 16 is a legitimate unauthenticated result.
    grpc_reached:r.status===401||r.status===403||
       (r.status===200&&/grpc/i.test(String(header(r,'content-type'))))
   };
  }catch(e){
-  return {discovery_http:discovery.status,grpc_reached:false,
+  return {discovery_http:discovery.status,grpc_reached:false,grpc_verified:false,
     error:String(e&&e.message||e).slice(0,100)};
  }
 }
@@ -95,7 +102,8 @@ async function accessToken(){
  const token=store().getItem('polestar.access');
  if(!token)throw Error('Sign in using Zepp first');
  const expires=Number(store().getItem('polestar.expires.at')||0);
- if(!expires||Date.now()<expires)return token;
+ if(!expires)throw Error('Session expiry missing. Sign in again in Zepp.');
+ if(Date.now()<expires)return token;
  const refresh=store().getItem('polestar.refresh');
  const url=store().getItem('polestar.token.endpoint');
  if(!refresh||!url)throw Error('Session expired. Sign in again in Zepp.');
@@ -154,7 +162,9 @@ async function processConnectionProbe(){
  probeInFlight=true;
  store().removeItem('polestar.probe.request');
  const result={auth_http:null,login_page:false,cookie_accessible:false,
-  grpc_http:null,grpc_reached:false,auth_error:'',grpc_error:''};
+  pkce_secure_crypto:false,grpc_http:null,grpc_reached:false,grpc_verified:false,
+  grpc_body_type:'not tested',grpc_binary_readable:false,
+  auth_error:'',grpc_error:''};
  try{
   store().setItem('polestar.probe.status','Checking Polestar login session…');
   try{
@@ -162,12 +172,16 @@ async function processConnectionProbe(){
    result.auth_http=a.auth_http;
    result.login_page=a.login_page;
    result.cookie_accessible=a.cookie_accessible;
+   result.pkce_secure_crypto=a.pkce_secure_crypto;
   }catch(e){result.auth_error=String(e&&e.message||e).slice(0,100);}
   store().setItem('polestar.probe.status','Checking Polestar vehicle API…');
   try{
    const g=await grpcTransportPreflight();
    result.grpc_http=g.grpc_http||null;
    result.grpc_reached=!!g.grpc_reached;
+   result.grpc_verified=!!g.grpc_verified;
+   result.grpc_body_type=g.grpc_body_type||'not available';
+   result.grpc_binary_readable=!!g.grpc_binary_readable;
    result.grpc_error=g.error||'';
   }catch(e){result.grpc_error=String(e&&e.message||e).slice(0,100);}
   store().setItem('polestar.probe.result',JSON.stringify(result));
@@ -199,13 +213,18 @@ async function processOauthResult(){
   await endpoint(value.access_token);
   trace('READY','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
  }catch(e){
+  // Never leave a token/VIN in a half-connected state after failed discovery.
+  for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
+   'polestar.token.endpoint','polestar.c3','vehicle.vin','vehicle.name'])
+   store().removeItem(k);
   trace('ERROR',String(e&&e.message||e).slice(0,130));
  }finally{oauthInFlight=false;}
 }
 function receiveStorageChange({key}={}){
  if(key==='polestar.session.clear'){
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
-   'polestar.c3','vehicle.vin','vehicle.name','polestar.oauth.result','polestar.oauth.result.at',
+   'polestar.c3','vehicle.vin','vehicle.name','polestar.token.endpoint',
+   'polestar.oauth.result','polestar.oauth.result.at',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
@@ -261,9 +280,17 @@ AppSideService(BaseSideService({
     if(!invocation.ok){
      res(null,{ok:false,error:'Polestar '+method+': '+invocation.status_label});return;
     }
-    // Polestar's explicit terminal SUCCESS=6 confirms the command, even on
-    // Zepp transports that do not expose HTTP/2 gRPC trailing metadata.
-    res(null,{ok:true,command:method,status:invocation.status_label});return;
+    // A terminal RPC SUCCESS means accepted, not necessarily that the door
+    // lock state changed. Do not report success without a fresh state read.
+    let observed='unknown';
+    try{
+     const ext=await grpc('GetLatestExterior',vin);
+     observed=decodeExterior(ext.payload).lock_state;
+    }catch(e){}
+    if(observed!==(p.action==='lock'?'locked':'unlocked')){
+     res(null,{ok:false,pending:true,error:'Command acknowledged, but car state not verified. Refresh status.'});return;
+    }
+    res(null,{ok:true,verified:true,command:method,status:invocation.status_label});return;
    }
    throw Error('Unknown request');
   }catch(e){res(null,{ok:false,error:String(e.message||e).slice(0,160)});}
