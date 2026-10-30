@@ -44,7 +44,7 @@ test('status bypasses app-local Promise bridge and uses Zepp BLE messaging direc
  await page.action();
  assert.equal(called,3);
  assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Session cookies: not available/);
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/gRPC: reachable/);
+ assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/gRPC: unverified/);
  assert.equal(page.busy,false);
 });
 test('phone service and watch messaging failures are displayed, not silently swallowed',async()=>{
@@ -61,7 +61,7 @@ test('confirmed commands cannot execute without user arming action',async()=>{
   if(payload.method==='zepp.ping')return {ok:true,auth:false};
   if(payload.method==='auth.preflight')return {ok:true,auth_http:200,login_page:true,cookie_accessible:true};
   if(payload.method==='grpc.preflight')return {ok:true,grpc_reached:false};
-  if(payload.method==='vehicle.command')return {ok:true};
+  if(payload.method==='vehicle.command')return {ok:true,verified:true};
   throw Error('Unexpected command');
  }};
  await page.action();
@@ -70,5 +70,18 @@ test('confirmed commands cannot execute without user arming action',async()=>{
  await page.action();
  assert.equal(calls.find(c=>c.method==='vehicle.command').params.confirmed,true);
  assert.equal(calls.find(c=>c.method==='vehicle.command').params.action,'unlock');
- assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Command sent/);
+ assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/Car state confirmed/);
+});
+
+test('watch does not report a successful unlock until vehicle lock state is verified',async()=>{
+ const {page,widgets}=makePage();
+ page.messaging={async request(payload){
+  assert.equal(payload.method,'vehicle.command');
+  assert.equal(payload.params.action,'unlock');
+  assert.equal(payload.params.confirmed,true);
+  return {ok:false,pending:true,error:'Command acknowledged, but car state not verified. Refresh status.'};
+ }};
+ page.arm('unlock');
+ await page.action();
+ assert.match(widgets.find(w=>w.type===1&&w.props.y===124).text,/state not verified/);
 });
