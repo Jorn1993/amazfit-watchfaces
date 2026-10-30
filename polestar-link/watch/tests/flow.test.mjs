@@ -55,7 +55,7 @@ function launch(startImmediately=true,options={}){
   authenticatePolestar:async(email,password)=>{
    logins++;
    assert.equal(email,'driver@example.test');
-   assert.equal(password,'test-password');
+   assert.equal(password,options.sessionLogin?'':'test-password');
    if(options.loginFailure)throw Error('Login not accepted');
    return {access_token:'simulated-token',refresh_token:'simulated-refresh',expires_in:900};
   },
@@ -335,4 +335,29 @@ test('Official Polestar website link is present but does not claim to connect wa
  const title=widgets.filter(x=>x.name==='Text').flatMap(x=>x.children.map(String)).join(' ');
  assert.match(title,/website session is separate from the watch app/);
  assert.equal(storage.getItem('polestar.access'),'');
+});
+
+test('Existing Polestar session can be requested from Zepp without storing or submitting a password',async()=>{
+ const {storage,page,getLogins,getCommands}=launch(true,{sessionLogin:true});
+ const ui=flatten(page.build({settingsStorage:storage}));
+ const email=ui.find(x=>x.name==='TextInput'&&x.props.label==='Polestar email');
+ email.props.onChange('driver@example.test');
+ const button=ui.find(x=>x.name==='Button'&&x.props.label==='Continue with existing Polestar session');
+ assert.ok(button);
+ button.props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ assert.equal(getLogins(),1);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(getCommands(),0,'No vehicle commands should execute during login');
+});
+
+test('Existing Polestar session requires an email but never prompts for a password',()=>{
+ const {storage,page,getLogins}=launch();
+ const ui=flatten(page.build({settingsStorage:storage}));
+ const button=ui.find(x=>x.name==='Button'&&x.props.label==='Continue with existing Polestar session');
+ button.props.onClick();
+ assert.match(storage.getItem('polestar.login.status'),/Enter your Polestar email first/);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(getLogins(),0);
 });
