@@ -47,7 +47,7 @@ function launch(startImmediately=true,options={}){
     const car=block(1,[...block(1,str(vin)),...block(6,str('Polestar 4'))]);
     return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(Uint8Array.from(block(1,car)))};
    }
-   if(url.includes('/GetLatestBattery'))return {status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+   if(url.includes('/GetLatestBattery'))return options.grpcBinaryBlocked?{status:200,headers:{},body:'not binary'}:{status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
    if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,(options.staleExterior?false:locked)?2:1)))};
    if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
@@ -375,7 +375,7 @@ test('C3 GetMyCars read-only fallback finds one linked car when both GraphQL lis
 });
 
 test('Secondary-car VIN entry remains unverified if Zepp cannot read gRPC bytes',async()=>{
- const {storage,page,side,getCommands}=launch(true,{noCars:true});
+ const {storage,page,side,getCommands}=launch(true,{noCars:true,grpcBinaryBlocked:true});
  storage.setItem('polestar.oauth.result.at',String(Date.now()));
  storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
  await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
