@@ -10,6 +10,7 @@ const View=(props,children)=>wrap('View',props,children);
 const Text=(props,value)=>wrap('Text',props,[value]);
 const Button=props=>wrap('Button',props);
 const Auth=props=>wrap('Auth',props);
+const TextInput=props=>wrap('TextInput',props);
 function flatten(tree){return [tree,...(tree.children||[]).flatMap(c=>typeof c==='object'?flatten(c):[])];}
 function msg(id,body){return Uint8Array.from([id*8+2,body.length,...body]);}
 function num(id,value){return [id*8,value];}
@@ -55,7 +56,7 @@ function launch(startImmediately=true){
     arg.onInit?.call(this);
    }
   }),
-  AppSettingsPage:arg=>{page=arg;},View,Text,Button,Auth,
+  AppSettingsPage:arg=>{page=arg;},View,Text,Button,Auth,TextInput,
   URL,Date,Math,JSON,ArrayBuffer,Uint8Array,TextDecoder,encodeURIComponent,decodeURIComponent,
   String,Number,Error,Promise,Array,Object,RegExp,console};
  vm.runInNewContext(sideCode,common,{filename:'app-side/index.js'});
