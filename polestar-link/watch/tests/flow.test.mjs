@@ -26,6 +26,8 @@ function launch(startImmediately=true,options={}){
  };
  let commands=0,locked=false,side,page;
  async function fetchMock({url,body}){
+  if(url==='https://httpbin.org/cookies')
+   return {status:200,body:{cookies:{zepp_probe_only:'harmless'}}};
   if(url.endsWith('/.well-known/openid-configuration'))
    return {status:200,body:{authorization_endpoint:'https://polestarid.eu.polestar.com/as/authorization.oauth2'}};
   if(url.startsWith('https://polestarid.eu.polestar.com/as/authorization.oauth2?'))
@@ -215,4 +217,34 @@ test('Failed vehicle discovery removes transient session credentials',async()=>{
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
  for(const key of ['polestar.access','polestar.refresh','polestar.expires.at','vehicle.vin','polestar.c3'])
   assert.equal(storage.getItem(key),'',key+' should be cleared');
+});
+
+test('Account-login feasibility check uses only synthetic cookie and no password',async()=>{
+ const {storage,side,page,getCommands}=launch();
+ const controls=flatten(page.build({settingsStorage:storage}));
+ const button=controls.find(x=>x.name==='Button'&&x.props.label==='Test login options (no password)');
+ assert.ok(button,'Settings must expose a safe login transport check');
+ button.props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.probe.status')==='Login transport check completed.');
+ const report=JSON.parse(storage.getItem('polestar.login.probe.result'));
+ assert.equal(report.cookie_echo_http,200);
+ assert.equal(report.cookie_header_forwarded,true);
+ assert.equal(report.cookie_echo_error,false);
+ const browser=JSON.parse(storage.getItem('polestar.browser.probe.result'));
+ assert.equal(browser.browser_polestar_readable,false,'Mock Settings browser has no native CORS-capable fetch');
+ assert.equal(storage.getItem('polestar.login.request'),'','No password handoff may be created');
+ assert.equal(storage.getItem('polestar.access'),'','No auth tokens may be created');
+ assert.equal(getCommands(),0,'No vehicle action allowed in diagnostic mode');
+ const again=await ask(side,'login.transport.preflight');
+ assert.equal(again.ok,true);
+ assert.equal(again.cookie_header_forwarded,true);
+});
+
+test('Browser login probe cannot take credentials from a Settings input',()=>{
+ const {storage,page}=launch();
+ const controls=flatten(page.build({settingsStorage:storage}));
+ const input=controls.filter(x=>x.name==='TextInput');
+ assert.equal(input.length,1);
+ assert.equal(input[0].props.disabled,true,'Password field stays an inert masking preview');
+ assert.equal(controls.some(x=>x.name==='Auth'),false,'Do not enable rejected Zepp OAuth callback');
 });
