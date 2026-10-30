@@ -20,6 +20,15 @@ function tokenPayload(value) {
 AppSettingsPage({
  build(props) {
   const s=props.settingsStorage;
+  // Remove legacy plaintext password requests from earlier experimental builds.
+  if(s.getItem('polestar.login.request'))s.removeItem('polestar.login.request');
+  if(s.getItem('polestar.login.request.at'))s.removeItem('polestar.login.request.at');
+  const pendingAt=Number(s.getItem('polestar.oauth.result.at')||0);
+  if(pendingAt&&Date.now()-pendingAt>120000){
+   s.removeItem('polestar.oauth.result');
+   s.removeItem('polestar.oauth.result.at');
+   s.setItem('polestar.login.status','The Zepp phone service did not finish. Open developer logs for Side Service.');
+  }
   const status=s.getItem('polestar.login.status')||'Not connected';
   const vin=s.getItem('vehicle.vin');
   const hasSession=!!s.getItem('polestar.access')&&!!vin&&!!s.getItem('polestar.c3');
@@ -54,6 +63,7 @@ AppSettingsPage({
       return;
      }
      s.setItem('polestar.login.status','Connecting your Polestar…');
+     s.setItem('polestar.oauth.result.at',String(Date.now()));
      s.setItem('polestar.oauth.result',JSON.stringify(tokens));
     },
     onReturn:value=>{
