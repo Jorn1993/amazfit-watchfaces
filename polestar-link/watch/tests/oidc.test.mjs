@@ -100,6 +100,7 @@ test('Follows an intermediate HTTP 302 and preserves Polestar session cookie bef
  let redirected=false,forwarded=false;
  const http=async(url,method='GET',headers={},body)=>{
   if(url.startsWith(ID+'/as/authorization.oauth2?')&&!redirected){
+   await baseline(url,method,headers,body); // Capture OAuth state in the simulated server.
    redirected=true;
    return {status:302,headers:{Location:'/as/login-step','Set-Cookie':'PF=dummy-cookie; Path=/; HttpOnly'}};
   }
