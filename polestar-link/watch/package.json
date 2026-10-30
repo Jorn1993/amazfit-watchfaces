@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@zeppos/zml": "0.0.43"
+    "@zeppos/zml": "0.0.43",
+    "js-sha256": "0.11.1"
   }
 }
