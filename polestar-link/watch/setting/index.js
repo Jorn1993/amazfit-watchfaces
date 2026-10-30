@@ -1,41 +1,34 @@
 AppSettingsPage({
- state:{email:'',password:''},
+ state:{url:'',token:''},
  build(props){
   const s=props.settingsStorage;
-  this.state.email=s.getItem('polestar.email')||this.state.email||'';
+  this.state.url=s.getItem('gateway.url')||this.state.url||'';
   const panel={padding:'18px',marginBottom:'18px',borderRadius:'16px',background:'#ffffff'};
-  const field={marginTop:'12px',marginBottom:'12px',padding:'12px',borderRadius:'10px',background:'#f1f3f6'};
+  const field={padding:'12px',marginTop:'12px',marginBottom:'12px',borderRadius:'10px',background:'#f1f3f6'};
   return View({style:{padding:'18px',background:'#f5f6f8'}},[
-   View({style:{marginBottom:'24px'}},[
-    Text({bold:true,style:{fontSize:'26px',marginBottom:'6px'}},'Polestar Link'),
-    Text({paragraph:true},'Polestar 4 · Account setup')
+   View({style:{marginBottom:'20px'}},[
+    Text({bold:true,style:{fontSize:'26px'}},'Polestar Link'),
+    Text({paragraph:true},'Polestar 4 remote control')
    ]),
    View({style:panel},[
-    Text({bold:true,style:{fontSize:'19px',marginBottom:'8px'}},'Polestar ID'),
-    Text({paragraph:true},'Enter your Polestar account details. Sign-in is not active yet.'),
-    View({style:field},[
-     TextInput({label:'Email address',placeholder:'name@example.com',value:this.state.email,onChange:v=>{this.state.email=v;}})
-    ]),
-    View({style:field},[
-     TextInput({label:'Password',placeholder:'Enter password',type:'password',value:this.state.password,onChange:v=>{this.state.password=v;}})
-    ]),
-    Button({label:'Save email',onClick:()=>{
-      const email=(this.state.email||'').trim();
-      if(!email){s.setItem('auth.status','Enter your email address');return;}
-      s.setItem('polestar.email',email);
-      this.state.password='';
-      s.setItem('auth.status','Email saved. Password not stored or submitted. Sign-in not implemented.');
+    Text({bold:true,style:{fontSize:'19px'}},'Private connector'),
+    Text({paragraph:true},'Your Polestar account is configured on your private HTTPS connector. Zepp uses its access token to retrieve vehicle status and send commands.'),
+    View({style:field},[TextInput({label:'HTTPS connector URL',placeholder:'https://your-host.example',value:this.state.url,onChange:v=>{this.state.url=v;}})]),
+    View({style:field},[TextInput({label:'Connector access token',placeholder:'Access token',value:this.state.token,onChange:v=>{this.state.token=v;}})]),
+    Button({label:'Save and connect',onClick:()=>{
+     const url=(this.state.url||'').trim().replace(/\/$/,'');
+     const token=this.state.token||s.getItem('gateway.token')||'';
+     if(!/^https:\/\//.test(url)||token.length<16){s.setItem('gateway.status','Enter a valid HTTPS URL and access token');return;}
+     s.setItem('gateway.url',url);s.setItem('gateway.token',token);
+     this.state.token='';
+     s.setItem('gateway.check',String(Date.now()));
     }}),
-    Text({paragraph:true,style:{marginTop:'12px'}},s.getItem('auth.status')||'Not connected')
-   ]),
-   View({style:panel},[
-    Text({bold:true,style:{fontSize:'19px',marginBottom:'8px'}},'Connection diagnostics'),
-    Button({label:'Test Polestar authorization',onClick:()=>s.setItem('probe.request',String(Date.now()))}),
-    Text({paragraph:true,style:{marginTop:'12px'}},s.getItem('probe.result')||'Not tested')
+    Text({paragraph:true,style:{marginTop:'12px'}},'Status: '+(s.getItem('gateway.status')||'Not connected'))
    ]),
    View({style:panel},[
     Text({bold:true,style:{fontSize:'19px'}},'Vehicle'),
-    Text({paragraph:true},'Lock and unlock are unavailable until account authentication and vehicle commands are implemented.')
+    Text({paragraph:true},s.getItem('vehicle.name')||'Connect to discover your Polestar.'),
+    Button({label:'Refresh vehicle',onClick:()=>s.setItem('gateway.check',String(Date.now()))})
    ])
   ]);
  }
