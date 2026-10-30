@@ -410,3 +410,40 @@ test('MyStar raw Authorization variant is tried only after 401 and can find vehi
  assert.equal(report.consumer_v2_count,1);
  assert.equal(storage.getItem('vehicle.vin'),vin);
 });
+
+test('Native binary failure probes read-only Web text and keeps lock blocked',async()=>{
+ for(const supported of [false,true]){
+  const {storage,side,page,getCommands}=launch(true,{noCars:true,grpcBinaryBlocked:true,webTextWorks:supported});
+  storage.setItem('polestar.oauth.result.at',String(Date.now()));
+  storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'simulated-token',expires_in:900}));
+  await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
+  const ui=flatten(page.build({settingsStorage:storage}));
+  ui.find(x=>x.name==='TextInput'&&x.props.label==='Vehicle VIN (optional)').props.onChange(vin);
+  ui.find(x=>x.name==='Button'&&x.props.label==='Find my Polestar 4').props.onClick();
+  await eventually(()=>storage.getItem('polestar.login.status').includes('VIN configured'));
+  flatten(page.build({settingsStorage:storage}))
+   .find(x=>x.name==='Button'&&x.props.label==='Verify vehicle connection').props.onClick();
+  await eventually(()=>storage.getItem('polestar.webtext.probe')!=='');
+  const r=JSON.parse(storage.getItem('polestar.webtext.probe'));
+  assert.equal(r.http,supported?200:415);
+  assert.equal(r.result,supported?'battery_verified':'http_error');
+  if(supported)assert.equal(r.battery_percent,84);
+  assert.equal(storage.getItem('vehicle.verified'),'');
+  const response=await ask(side,'vehicle.command',{action:'unlock',confirmed:true});
+  assert.equal(response.ok,false);
+  assert.equal(getCommands(),0);
+ }
+});
+
+test('Settings view wraps each control in its own vertically stacked block',()=>{
+ const {page,storage}=launch();
+ const root=page.build({settingsStorage:storage});
+ assert.equal(root.name,'View');
+ assert.equal(root.props.style.flexDirection,'column');
+ assert.ok(root.children.length>=3);
+ for(const item of root.children){
+  assert.equal(item.name,'View');
+  assert.equal(item.props.style.display,'block');
+  assert.equal(item.children.length,1);
+ }
+});
