@@ -3,32 +3,40 @@ AppSettingsPage({
  build(props){
   const s=props.settingsStorage;
   this.state.email=s.getItem('polestar.email')||this.state.email||'';
-  return View({style:{padding:'20px'}},[
-   View({style:{marginBottom:'22px'}},[
-    Text({bold:true,style:{fontSize:'24px'}},'Polestar Link'),
-    Text({paragraph:true},'Version 0.9.1 • Account sign-in development')
+  const panel={padding:'18px',marginBottom:'18px',borderRadius:'16px',background:'#ffffff'};
+  const field={marginTop:'12px',marginBottom:'12px',padding:'12px',borderRadius:'10px',background:'#f1f3f6'};
+  return View({style:{padding:'18px',background:'#f5f6f8'}},[
+   View({style:{marginBottom:'24px'}},[
+    Text({bold:true,style:{fontSize:'26px',marginBottom:'6px'}},'Polestar Link'),
+    Text({paragraph:true},'Polestar 4 · Account setup')
    ]),
-   View({style:{marginBottom:'22px'}},[
-    Text({bold:true},'Polestar account'),
-    TextInput({label:'Email',placeholder:'Your Polestar ID email',value:this.state.email,onChange:v=>{this.state.email=v;}}),
-    TextInput({label:'Password',placeholder:'Polestar ID password',type:'password',value:this.state.password,onChange:v=>{this.state.password=v;}}),
-    Button({label:'Prepare sign-in',onClick:()=>{
-     const email=(this.state.email||'').trim();
-     if(!email||!this.state.password){s.setItem('auth.status','Enter both email and password');return;}
-     s.setItem('polestar.email',email);
-     // Never persist the password while the authenticated OAuth flow is incomplete.
-     this.state.password='';
-     s.setItem('auth.status','Account entered; OAuth login not implemented. Password was not submitted or saved.');
+   View({style:panel},[
+    Text({bold:true,style:{fontSize:'19px',marginBottom:'8px'}},'Polestar ID'),
+    Text({paragraph:true},'Enter your Polestar account details. Sign-in is not active yet.'),
+    View({style:field},[
+     TextInput({label:'Email address',placeholder:'name@example.com',value:this.state.email,onChange:v=>{this.state.email=v;}})
+    ]),
+    View({style:field},[
+     TextInput({label:'Password',placeholder:'Enter password',type:'password',value:this.state.password,onChange:v=>{this.state.password=v;}})
+    ]),
+    Button({label:'Save email',onClick:()=>{
+      const email=(this.state.email||'').trim();
+      if(!email){s.setItem('auth.status','Enter your email address');return;}
+      s.setItem('polestar.email',email);
+      this.state.password='';
+      s.setItem('auth.status','Email saved. Password not stored or submitted. Sign-in not implemented.');
     }}),
-    Text({paragraph:true},'Status: '+(s.getItem('auth.status')||'Not connected'))
+    Text({paragraph:true,style:{marginTop:'12px'}},s.getItem('auth.status')||'Not connected')
    ]),
-   View({style:{marginBottom:'22px'}},[
-    Text({bold:true},'Polestar OAuth endpoint'),
-    Button({label:'Check authorization endpoint',onClick:()=>s.setItem('probe.request',String(Date.now()))}),
-    Text({paragraph:true},'Result: '+(s.getItem('probe.result')||'Not tested'))
+   View({style:panel},[
+    Text({bold:true,style:{fontSize:'19px',marginBottom:'8px'}},'Connection diagnostics'),
+    Button({label:'Test Polestar authorization',onClick:()=>s.setItem('probe.request',String(Date.now()))}),
+    Text({paragraph:true,style:{marginTop:'12px'}},s.getItem('probe.result')||'Not tested')
    ]),
-   Text({bold:true},'Vehicle controls'),
-   Text({paragraph:true},'Disabled until authenticated session and vehicle API are validated.')
+   View({style:panel},[
+    Text({bold:true,style:{fontSize:'19px'}},'Vehicle'),
+    Text({paragraph:true},'Lock and unlock are unavailable until account authentication and vehicle commands are implemented.')
+   ])
   ]);
  }
 });
