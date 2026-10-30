@@ -77,6 +77,11 @@ async function openAuthorizationPage(url,http,cookies){
    throw Error('Polestar authorization HTTP '+response.status);
   const location=lookupHeader(response.headers,'location');
   if(!location)throw Error('Zepp Fetch did not expose Polestar redirect Location');
+  // PingFederate may immediately return the registered app callback if a
+  // previous Polestar login is still valid. Treat it as an authorization
+  // *result*, not as an HTTP URL to follow or a reason to submit a password.
+  if(location.startsWith(REDIRECT+'?'))
+   return {response:null,postPath:'',callback:location};
   // No request is ever made to the website; use only the validated token.
   const postPath=resumePathFromRedirect(location);
   if(postPath)return {response:null,postPath};
@@ -151,32 +156,39 @@ export async function authenticatePolestar(email,password,http,cryptoApi){
  };
  const cookies={};
  const initial=await openAuthorizationPage(authorize+'?'+encoding(params),http,cookies);
- const postPath=initial.postPath || (safeBody(initial.response).match(/(?:url|action)\s*:\s*"([^"]+)"/)||[])[1];
- if(!postPath||!postPath.startsWith('/')||postPath.startsWith('//')||postPath.includes('\\'))
-  throw Error('Polestar login form missing a safe resume path');
- if(!cookieHeader(cookies))throw Error('Zepp Fetch did not expose Polestar session cookies');
- const postUrl=BASE+postPath+'?'+encoding(params);
- let response=await http(postUrl,'POST',{
-  'Content-Type':'application/x-www-form-urlencoded',
-  'Cookie':cookieHeader(cookies)
- },encoding({'pf.username':email,'pf.pass':password}));
- mergeCookies(cookies,response);
- if(response.status!==302&&response.status!==303)
-  throw Error('Polestar sign-in did not return a redirect (HTTP '+response.status+')');
- let location=lookupHeader(response.headers,'location');
- if(typeof location!=='string'||!location.startsWith(REDIRECT)){
-  // Some accounts must accept Terms & Conditions before returning an auth code.
-  const uid=/[?&]uid=([^&]+)/.exec(String(location||''));
-  if(!uid)throw Error('Zepp could not obtain Polestar authorization redirect');
-  response=await http(postUrl,'POST',{
+ let code;
+ if(initial.callback){
+  // This works with an existing active Polestar ID session in Zepp. It never
+  // submits the entered password, and requires an exact CSRF state match.
+  code=parseCode(initial.callback,state);
+ }else{
+  const postPath=initial.postPath || (safeBody(initial.response).match(/(?:url|action)\s*:\s*"([^"]+)"/)||[])[1];
+  if(!postPath||!postPath.startsWith('/')||postPath.startsWith('//')||postPath.includes('\\'))
+   throw Error('Polestar login form missing a safe resume path');
+  if(!cookieHeader(cookies))throw Error('Zepp Fetch did not expose Polestar session cookies');
+  const postUrl=BASE+postPath+'?'+encoding(params);
+  let response=await http(postUrl,'POST',{
    'Content-Type':'application/x-www-form-urlencoded',
    'Cookie':cookieHeader(cookies)
-  },encoding({'pf.submit':'true',subject:decodeURIComponent(uid[1])}));
+  },encoding({'pf.username':email,'pf.pass':password}));
+  mergeCookies(cookies,response);
   if(response.status!==302&&response.status!==303)
-   throw Error('Polestar consent HTTP '+response.status);
-  location=lookupHeader(response.headers,'location');
+   throw Error('Polestar sign-in did not return a redirect (HTTP '+response.status+')');
+  let location=lookupHeader(response.headers,'location');
+  if(typeof location!=='string'||!location.startsWith(REDIRECT)){
+   // Some accounts must accept Terms & Conditions before returning an auth code.
+   const uid=/[?&]uid=([^&]+)/.exec(String(location||''));
+   if(!uid)throw Error('Zepp could not obtain Polestar authorization redirect');
+   response=await http(postUrl,'POST',{
+    'Content-Type':'application/x-www-form-urlencoded',
+    'Cookie':cookieHeader(cookies)
+   },encoding({'pf.submit':'true',subject:decodeURIComponent(uid[1])}));
+   if(response.status!==302&&response.status!==303)
+    throw Error('Polestar consent HTTP '+response.status);
+   location=lookupHeader(response.headers,'location');
+  }
+   code=parseCode(location,state);
  }
- const code=parseCode(location,state);
  const token=await http(tokenEndpoint,'POST',{
   'Content-Type':'application/x-www-form-urlencoded'
  },encoding({grant_type:'authorization_code',code,redirect_uri:REDIRECT,
