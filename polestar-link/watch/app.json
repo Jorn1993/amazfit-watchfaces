@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 18,
-      "name": "1.1.1"
+      "code": 19,
+      "name": "1.2.0"
     },
     "vender": "Personal prototype",
-    "description": "Polestar ID login UI prototype",
+    "description": "Polestar ID experimental OAuth discovery and diagnostics",
     "icon": "icon.png"
   },
   "permissions": [
