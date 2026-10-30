@@ -38,8 +38,8 @@ test('Two watch views only: main dashboard and the full C3 action grid',async()=
  assert.equal(page.screen,0);
  assert.equal(widgets.filter(w=>w.type==='IMG').length,1,'real Polestar logo on watch');
  assert.equal(widgets.find(w=>w.type==='IMG').state.src,'polestar-mark.png');
- assert.equal(page.state.battery,77);
- assert.equal(page.state.range,340);
+ assert.equal(page.polestarMetrics.battery,77);
+ assert.equal(page.polestarMetrics.range,340);
  assert.equal(page.battery.state.text,'77 %');
  assert.equal(page.range.state.text,'340 km');
  assert.equal(page.widgets.main.some(w=>w.state.text==='LOCK'),true);
@@ -87,4 +87,49 @@ test('Expired confirmation cannot send a command',async()=>{
  await page.confirm();
  assert.equal(commands(),0);
  assert.match(page.moreNotice.state.text,/expired/);
+});
+
+test('Real Zepp BasePage state mutation cannot produce undefined dashboard metrics',async()=>{
+ const {page}=await launch(false);
+ // Simulate the platform overwriting its reserved `state` object after build.
+ page.state={};
+ page.polestarMetrics={};
+ page.render();
+ assert.equal(page.battery.state.text,'-- %');
+ assert.equal(page.range.state.text,'-- km');
+ page.polestarMetrics={battery:undefined,range:undefined};
+ page.render();
+ assert.equal(page.battery.state.text,'-- %');
+ assert.equal(page.range.state.text,'-- km');
+ page.polestarMetrics={battery:NaN,range:Infinity};
+ page.render();
+ assert.equal(page.battery.state.text,'-- %');
+ assert.equal(page.range.state.text,'-- km');
+ assert.equal(page.refreshButton.state.text,'SYNC','Use a readable refresh label, not unsupported Unicode');
+});
+test('Refresh clears stale numbers when vehicle capability is no longer verified',async()=>{
+ const {page}=await launch(true);
+ assert.equal(page.battery.state.text,'77 %');
+ page.phoneRequest=async x=>{
+  if(x.method==='vehicle.capabilities')return {
+   ok:true,authenticated:true,vehicle_configured:true,native_verified:false};
+  throw Error('Vehicle status should not be called without verification');
+ };
+ await page.refresh();
+ assert.equal(page.polestarMetrics.verified,false);
+ assert.equal(page.battery.state.text,'-- %');
+ assert.equal(page.range.state.text,'-- km');
+});
+test('Missing numeric status fields never show zero or undefined',async()=>{
+ const {page}=await launch(true);
+ page.phoneRequest=async x=>{
+  if(x.method==='vehicle.capabilities')return {
+   ok:true,authenticated:true,vehicle_configured:true,native_verified:true};
+  if(x.method==='vehicle.status')return {
+   ok:true,battery_percent:null,range_km:undefined,charging:false};
+ };
+ await page.refresh();
+ assert.equal(page.battery.state.text,'-- %');
+ assert.equal(page.range.state.text,'-- km');
+ assert.match(page.notice.state.text,/values unavailable/);
 });
