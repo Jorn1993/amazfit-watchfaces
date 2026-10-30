@@ -22,7 +22,7 @@ const PALETTE={
 Page(BasePage({
  build(){
   this.busy=false;this.disposed=false;this.pending=null;this.screen=0;
-  this.state={battery:null,range:null,charging:null,lock:'unknown',verified:false};
+  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
   this.widgets={main:[],more:[]};
   const shared=(type,params)=>ui.createWidget(type,params);
   const add=(page,type,params)=>{
@@ -44,8 +44,8 @@ Page(BasePage({
   this.title=shared(ui.widget.TEXT,{x:64,y:132,w:352,h:35,
    text:'POLESTAR 4',text_size:21,color:PALETTE.muted,align_h:ui.align.CENTER_H});
   // Small refresh action available without adding a third watch page.
-  this.refreshButton=button('main',367,130,47,36,'↻',
-   ()=>{void this.refresh();},PALETTE.surface,22);
+  this.refreshButton=button('main',354,130,64,36,'SYNC',
+   ()=>{void this.refresh();},PALETTE.surface,15);
   // Overview: large paired vehicle metrics, no invented live data.
   add('main',ui.widget.FILL_RECT,{x:56,y:171,w:368,h:110,radius:25,color:PALETTE.card});
   this.battery=txt('main',73,189,164,46,'-- %',41);
@@ -96,10 +96,15 @@ Page(BasePage({
    this.mainMore.setProperty(ui.prop.TEXT,'MORE');
    this.backButton.setProperty(ui.prop.TEXT,'BACK');
   }
-  this.battery.setProperty(ui.prop.TEXT,
-   this.state.battery===null?'-- %':this.state.battery+' %');
-  this.range.setProperty(ui.prop.TEXT,
-   this.state.range===null?'-- km':this.state.range+' km');
+  // BasePage may own a framework-managed 'state' property on real Zepp OS.
+  // Keep our metrics separate and never stringify undefined or invalid values.
+  const values=this.polestarMetrics||{};
+  const battery=Number.isFinite(values.battery)&&values.battery>=0&&values.battery<=100?
+   Math.round(values.battery)+' %':'-- %';
+  const range=Number.isFinite(values.range)&&values.range>=0&&values.range<=2000?
+   Math.round(values.range)+' km':'-- km';
+  this.battery.setProperty(ui.prop.TEXT,battery);
+  this.range.setProperty(ui.prop.TEXT,range);
  },
  setPage(page){
   this.pending=null;this.screen=page===1?1:0;
@@ -115,6 +120,9 @@ Page(BasePage({
  async arm(action){
   if(this.busy)return;
   this.busy=true;
+  // Never display stale live telemetry after reconnection or a failed refresh.
+  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
+  this.render();
   try{
    const cap=await this.phoneRequest({method:'vehicle.capabilities'},12000);
    if(!cap||!cap.ok||!cap.native_verified){
@@ -160,12 +168,15 @@ Page(BasePage({
    }
    const r=await this.phoneRequest({method:'vehicle.status'},20000);
    if(!r||!r.ok){this.show(String(r&&r.error||'Vehicle unavailable'));return;}
-   this.state.battery=typeof r.battery_percent==='number'?r.battery_percent:null;
-   this.state.range=typeof r.range_km==='number'?r.range_km:null;
-   this.state.charging=!!r.charging;
-   this.state.lock=r.lock_state||'unknown';
-   this.state.verified=true;
-   this.show('Lock '+this.state.lock+(this.state.charging?' • Charging':' • Connected'));
+   const battery=Number(r.battery_percent),range=Number(r.range_km);
+   if(!Number.isFinite(battery)||battery<0||battery>100||
+      !Number.isFinite(range)||range<0||range>2000){
+    this.show('Vehicle values unavailable');return;
+   }
+   this.polestarMetrics={battery,range,charging:!!r.charging,
+    lock:r.lock_state||'unknown',verified:true};
+   this.show('Lock '+this.polestarMetrics.lock+
+    (this.polestarMetrics.charging?' • Charging':' • Connected'));
   }catch(e){this.show('Zepp phone unavailable: '+String(e&&e.message||e).slice(0,70));}
   finally{this.busy=false;this.render();}
  },
