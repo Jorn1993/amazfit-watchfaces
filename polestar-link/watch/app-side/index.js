@@ -404,6 +404,8 @@ async function connectManualVin(){
  if(!vin||manualVehicleInFlight)return;
  s.removeItem('polestar.manual.vin.request');
  manualVehicleInFlight=true;
+ s.removeItem('polestar.webtext.probe');
+ s.setItem('polestar.vehicle.verify.status','testing_native');
  try{
   if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin))throw Error('Enter a valid 17-character VIN');
   const token=await accessToken();
@@ -418,12 +420,21 @@ async function connectManualVin(){
    const result=await grpc('GetLatestBattery',vin);
    decodeBattery(result.payload);
    s.setItem('vehicle.verified','true');
+   s.setItem('polestar.vehicle.verify.status','native_verified');
    trace('READY','Polestar 4 verified via live battery status');
   }catch(e){
-   trace('AUTH','VIN configured; cloud status not verified: '+String(e&&e.message||e).slice(0,75));
+   s.setItem('polestar.vehicle.verify.status','testing_text');
+   const result=await testWebTextTransport(vin);
+   s.setItem('polestar.webtext.probe',JSON.stringify(result));
+   s.setItem('polestar.vehicle.verify.status','text_'+result.result);
+   trace('AUTH',result.result==='battery_verified'?
+    'Car battery response verified with gRPC-Web text (commands still disabled)':
+    'Car configured. Native binary unavailable; text transport '+
+     (result.http===null?'not reached':'HTTP '+result.http+' ('+result.result+')'));
   }
  }catch(e){
   trace('ERROR',String(e&&e.message||e).slice(0,90));
+  s.setItem('polestar.vehicle.verify.status','failed');
  }finally{manualVehicleInFlight=false;}
 }
 let statusVerificationInFlight=false;
@@ -432,16 +443,20 @@ async function verifyVehicleStatus(){
  if(statusVerificationInFlight||!vin)return;
  statusVerificationInFlight=true;
  s.removeItem('polestar.vehicle.verify.request');
+ s.removeItem('polestar.webtext.probe');
+ s.setItem('polestar.vehicle.verify.status','testing_native');
  try{
   const result=await grpc('GetLatestBattery',vin);
   decodeBattery(result.payload);
   s.setItem('vehicle.verified','true');
+  s.setItem('polestar.vehicle.verify.status','native_verified');
   trace('READY','Polestar 4 connection verified');
  }catch(e){
   s.removeItem('vehicle.verified');
-  const cause=String(e&&e.message||e);
+  s.setItem('polestar.vehicle.verify.status','testing_text');
   const test=await testWebTextTransport(vin);
   s.setItem('polestar.webtext.probe',JSON.stringify(test));
+  s.setItem('polestar.vehicle.verify.status','text_'+test.result);
   if(test.result==='battery_verified'){
    // The text path proves only a read-only status response. The native
    // command transport and stream/trailers remain unverified.
@@ -489,7 +504,7 @@ function receiveStorageChange({key}={}){
    'polestar.oauth.result','polestar.oauth.result.at',
    'polestar.vehicle.lookup','polestar.vehicle.discovery.request',
    'vehicle.verified','vehicle.source','polestar.manual.vin.request',
-   'polestar.webtext.probe',
+   'polestar.webtext.probe','polestar.vehicle.verify.status',
    'polestar.vehicle.verify.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
@@ -544,7 +559,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.19-binary-transport-check',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.20-verification-status',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
