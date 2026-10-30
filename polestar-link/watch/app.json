@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 25,
-      "name": "1.3.5"
+      "code": 26,
+      "name": "1.3.6"
     },
     "vender": "Personal prototype",
-    "description": "Experimental native OAuth login; no plaintext password entry",
+    "description": "Watch messaging diagnostics: bypass local request bridge; secure OAuth experimental",
     "icon": "icon.png"
   },
   "permissions": [
