@@ -60,7 +60,7 @@ AppSettingsPage({
      s.getItem('polestar.probe.status')||'Not checked yet'),
     Text({paragraph:true,style:{marginTop:'8px'}},
      'Login page: '+(report.auth_http===null||report.auth_http===undefined?'not checked':
-       'HTTP '+report.auth_http+(report.login_page?' (detected)':' (not detected)'))),
+       'HTTP '+report.auth_http+(report.login_page?' (detected)':report.auth_http===302?' (redirect; form not fetched)':' (not detected)'))),
     Text({paragraph:true},
      'Session cookie response: '+(report.cookie_accessible?'readable':'not verified')),
     Text({paragraph:true},
