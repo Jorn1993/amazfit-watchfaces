@@ -383,6 +383,22 @@ async function connectManualVin(){
   trace('ERROR',String(e&&e.message||e).slice(0,90));
  }finally{manualVehicleInFlight=false;}
 }
+let statusVerificationInFlight=false;
+async function verifyVehicleStatus(){
+ const s=store(),vin=s.getItem('vehicle.vin');
+ if(statusVerificationInFlight||!vin)return;
+ statusVerificationInFlight=true;
+ s.removeItem('polestar.vehicle.verify.request');
+ try{
+  const result=await grpc('GetLatestBattery',vin);
+  decodeBattery(result.payload);
+  s.setItem('vehicle.verified','true');
+  trace('READY','Polestar 4 connection verified');
+ }catch(e){
+  s.removeItem('vehicle.verified');
+  trace('AUTH','Car selected; live status unavailable: '+String(e&&e.message||e).slice(0,70));
+ }finally{statusVerificationInFlight=false;}
+}
 let oauthInFlight=false;
 async function processOauthResult(){
  const raw=store().getItem('polestar.oauth.result');
@@ -420,6 +436,7 @@ function receiveStorageChange({key}={}){
    'polestar.oauth.result','polestar.oauth.result.at',
    'polestar.vehicle.lookup','polestar.vehicle.discovery.request',
    'vehicle.verified','vehicle.source','polestar.manual.vin.request',
+   'polestar.vehicle.verify.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
@@ -430,6 +447,8 @@ function receiveStorageChange({key}={}){
   void retryVehicleDiscovery();
  }else if(key==='polestar.manual.vin.request'){
   void connectManualVin();
+ }else if(key==='polestar.vehicle.verify.request'){
+  void verifyVehicleStatus();
  }else if(key==='polestar.probe.request'){
   void processConnectionProbe();
  }else if(key==='polestar.login.probe.request'){
@@ -447,6 +466,8 @@ AppSideService(BaseSideService({
   void processConnectionProbe();
   void processLoginTransportProbe();
   void processDirectLogin();
+  void connectManualVin();
+  void verifyVehicleStatus();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
@@ -454,6 +475,8 @@ AppSideService(BaseSideService({
   void processConnectionProbe();
   void processLoginTransportProbe();
   void processDirectLogin();
+  void connectManualVin();
+  void verifyVehicleStatus();
  },
  async onRequest(req,res){
   try{
