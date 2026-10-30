@@ -1,4 +1,5 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
+import { authenticatePolestar } from './oidc.js';
 import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
 const store=()=>settings.settingsStorage;
 const CLIENT='lp8dyrd_10';
@@ -222,6 +223,27 @@ async function processConnectionProbe(){
   store().setItem('polestar.probe.status','Polestar compatibility test completed.');
  }finally{probeInFlight=false;}
 }
+let loginInFlight=false;
+async function processDirectLogin(){
+ const s=store(),raw=s.getItem('polestar.login.request');
+ if(!raw || loginInFlight)return;
+ loginInFlight=true;
+ s.removeItem('polestar.login.request');
+ const started=Number(s.getItem('polestar.login.request.at')||0);
+ s.removeItem('polestar.login.request.at');
+ try{
+  if(!started || started>Date.now()+30000 || Date.now()-started>120000)
+   throw Error('Login request expired');
+  const {email,password}=JSON.parse(raw);
+  trace('AUTH','Signing in to Polestar ID');
+  const tokens=await authenticatePolestar(email,password,http,crypto);
+  s.setItem('polestar.oauth.result.at',String(Date.now()));
+  s.setItem('polestar.oauth.result',JSON.stringify(tokens));
+  await processOauthResult();
+ }catch(e){
+  trace('ERROR',String(e&&e.message||'Login failed').slice(0,110));
+ }finally{loginInFlight=false;}
+}
 let oauthInFlight=false;
 async function processOauthResult(){
  const raw=store().getItem('polestar.oauth.result');
@@ -268,24 +290,26 @@ function receiveStorageChange({key}={}){
   void processConnectionProbe();
  }else if(key==='polestar.login.probe.request'){
   void processLoginTransportProbe();
+ }else if(key==='polestar.login.request'){
+  void processDirectLogin();
  }
 }
 AppSideService(BaseSideService({
  onSettingsChange(change){receiveStorageChange(change||{});},
  onInit(){
-  // Clear legacy queued passwords from older insecure builds.
-  store().removeItem('polestar.login.request');
-  store().removeItem('polestar.login.request.at');
+  // A queued login expires automatically and is cleared before network calls.
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
   void processConnectionProbe();
   void processLoginTransportProbe();
+  void processDirectLogin();
  },
  onRun(){
   store().setItem('polestar.side.ready',String(Date.now()));
   void processOauthResult();
   void processConnectionProbe();
   void processLoginTransportProbe();
+  void processDirectLogin();
  },
  async onRequest(req,res){
   try{
@@ -299,7 +323,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.11-login-feasibility',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.13-direct-login',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
