@@ -79,7 +79,7 @@ function parseCode(location,state){
   const k=decodeURIComponent(item.slice(0,equal));
   fields[k]=decodeURIComponent(item.slice(equal+1).replace(/\+/g,'%20'));
  }
- if(fields.state&&fields.state!==state)throw Error('Polestar login state mismatch');
+ if(!fields.state||fields.state!==state)throw Error('Polestar login state missing or mismatched');
  if(!fields.code||fields.code.length>4096)throw Error('Polestar did not return an authorization code');
  return fields.code;
 }
