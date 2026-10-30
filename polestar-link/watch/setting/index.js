@@ -10,7 +10,8 @@ AppSettingsPage({
   const vin=s.getItem('vehicle.vin')||'';
   const verified=s.getItem('vehicle.verified')==='true';
   const details=s.getItem('polestar.ui.details')==='true';
-  let lookup={},report={};
+  let lookup={},report={},webtext={};
+  try{webtext=JSON.parse(s.getItem('polestar.webtext.probe')||'{}');}catch(e){}
   try{lookup=JSON.parse(s.getItem('polestar.vehicle.lookup')||'{}');}catch(e){}
   try{report=JSON.parse(s.getItem('polestar.probe.result')||'{}');}catch(e){}
   const rawStatus=s.getItem('polestar.login.status')||'';
@@ -118,12 +119,28 @@ AppSettingsPage({
     Text({paragraph:true},'Identity HTTP: '+info(report.auth_http)+
      ' · PKCE: '+(report.pkce_secure_crypto?'available':'not tested')),
     Text({paragraph:true},'gRPC binary: '+(report.grpc_binary_readable?'available':'not verified')),
+    webtext.tested?Text({paragraph:true},
+      'gRPC-Web text: '+String(webtext.http===null?'no HTTP response':'HTTP '+webtext.http)+
+      ' · '+String(webtext.result||'unknown')+
+      (webtext.battery_percent===null?'':' · battery '+webtext.battery_percent+'%')
+    ):Text({},''),
+    webtext.tested?Text({paragraph:true},
+      'Response: '+String(webtext.content_type||'unknown')+
+      ' · '+String(webtext.response_type||'unknown')):Text({},''),
     Button({label:'Run compatibility check',style:secondary,onClick:()=>{
      s.setItem('polestar.probe.status','Checking compatibility…');
      s.setItem('polestar.probe.request',String(Date.now()));
     }})
    );
   }
-  return View({style:{padding:'22px',background:'#ffffff'}},content);
+  // View is a div-like CSS container in Zepp Settings. Explicit block
+  // wrappers prevent inline Text/Button elements from sharing a line, as
+  // observed on the owner's Android Zepp (v1.3.18).
+  return View({style:{
+   padding:'22px',background:'#ffffff',display:'flex',
+   flexDirection:'column',alignItems:'stretch',gap:'4px'
+  }},content.map(item=>View({style:{
+   display:'block',width:'100%',marginBottom:'12px',clear:'both'
+  }},[item])));
  }
 });
