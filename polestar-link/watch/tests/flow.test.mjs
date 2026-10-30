@@ -25,7 +25,7 @@ function launch(startImmediately=true,options={}){
   removeItem:k=>map.delete(k),
   addListener(type,cb){assert.equal(type,'change');listeners.push(cb);}
  };
- let commands=0,locked=false,side,page;
+ let commands=0,locked=false,side,page,logins=0;
  async function fetchMock({url,body}){
   if(url==='https://httpbin.org/cookies')
    return {status:200,body:{cookies:{zepp_probe_only:'harmless'}}};
@@ -48,7 +48,14 @@ function launch(startImmediately=true,options={}){
  }
  const sideCode=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const settingsCode=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
- const common={settings:{settingsStorage:storage},fetch:fetchMock,...proto,
+ const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,
+  authenticatePolestar:async(email,password)=>{
+   logins++;
+   assert.equal(email,'driver@example.test');
+   assert.equal(password,'test-password');
+   if(options.loginFailure)throw Error('Login not accepted');
+   return {access_token:'simulated-token',refresh_token:'simulated-refresh',expires_in:900};
+  },
   AppSideService:arg=>{side=arg;},
   BaseSideService:arg=>({
    ...arg,
@@ -65,7 +72,7 @@ function launch(startImmediately=true,options={}){
  vm.runInNewContext(sideCode,common,{filename:'app-side/index.js'});
  vm.runInNewContext(settingsCode,common,{filename:'setting/index.js'});
  if(startImmediately)side.onInit();
- return {storage,side,page,getCommands:()=>commands};
+ return {storage,side,page,getCommands:()=>commands,getLogins:()=>logins};
 }
 async function eventually(testValue){
  for(let i=0;i<100;i++){
@@ -77,14 +84,14 @@ async function eventually(testValue){
 function ask(side,method,params){
  return new Promise((resolve,reject)=>side.onRequest({method,params},(err,response)=>err?reject(err):resolve(response)));
 }
-test('Zepp login never renders real password input or broken OAuth redirect',()=>{
+test('Personal login renders an email and a visually masked password field',()=>{
  const {storage,page}=launch();
  const components=flatten(page.build({settingsStorage:storage}));
  const inputs=components.filter(x=>x.name==='TextInput');
- assert.equal(inputs.length,1,'Only non-secret mask preview is present');
- assert.equal(inputs[0].props.disabled,true);
- assert.equal(inputs[0].props.value,'Demo123!');
- assert.equal(inputs[0].props.subStyle.WebkitTextSecurity,'disc');
+ assert.equal(inputs.length,2);
+ assert.equal(inputs[0].props.label,'Polestar email');
+ assert.equal(inputs[1].props.label,'Polestar password');
+ assert.equal(inputs[1].props.subStyle.WebkitTextSecurity,'disc');
  assert.equal(components.some(x=>x.name==='Auth'),false);
 });
 
@@ -241,13 +248,38 @@ test('Account-login feasibility check uses only synthetic cookie and no password
  assert.equal(again.cookie_header_forwarded,true);
 });
 
-test('Browser login probe cannot take credentials from a Settings input',()=>{
- const {storage,page}=launch();
+test('Credentials are only submitted on explicit sign-in',async()=>{
+ const {storage,page,getLogins,getCommands}=launch();
  const controls=flatten(page.build({settingsStorage:storage}));
- const input=controls.filter(x=>x.name==='TextInput');
- assert.equal(input.length,1);
- assert.equal(input[0].props.disabled,true,'Password field stays an inert masking preview');
- assert.equal(controls.some(x=>x.name==='Auth'),false,'Do not enable rejected Zepp OAuth callback');
+ const inputs=controls.filter(x=>x.name==='TextInput');
+ inputs[0].props.onChange('driver@example.test');
+ inputs[1].props.onChange('test-password');
+ assert.equal(getLogins(),0);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(getCommands(),0);
+ const button=controls.find(x=>x.name==='Button'&&x.props.label==='Sign in to Polestar');
+ button.props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ assert.equal(getLogins(),1);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(storage.getItem('polestar.login.request.at'),'');
+ assert.equal(storage.getItem('polestar.email'),'driver@example.test');
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(getCommands(),0);
+});
+
+test('Failed login does not keep password or mark a car connected',async()=>{
+ const {storage,page,getLogins}=launch(true,{loginFailure:true});
+ const controls=flatten(page.build({settingsStorage:storage}));
+ const inputs=controls.filter(x=>x.name==='TextInput');
+ inputs[0].props.onChange('driver@example.test');
+ inputs[1].props.onChange('test-password');
+ controls.find(x=>x.name==='Button'&&x.props.label==='Sign in to Polestar').props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
+ assert.equal(getLogins(),1);
+ assert.equal(storage.getItem('polestar.login.request'),'');
+ assert.equal(storage.getItem('polestar.access'),'');
+ assert.equal(storage.getItem('vehicle.vin'),'');
 });
 
 test('Official Polestar website link is present but does not claim to connect watch',()=>{
