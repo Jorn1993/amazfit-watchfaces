@@ -1,5 +1,6 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { authenticatePolestar } from './oidc.js';
+import { toBase64, grpcWebMessages } from './grpc-web-text.js';
 import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation, decodeMyCars } from './proto.js';
 const store=()=>settings.settingsStorage;
 const CLIENT='lp8dyrd_10';
@@ -282,6 +283,48 @@ async function grpc(method,vin){
  const messages=grpcMessages(r.body);
  return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
+// Read-only alternative to native gRPC. Never perform lock/unlock as part of
+// this diagnostic. Works only if the Polestar C3 host supports gRPC-Web-text.
+async function testWebTextTransport(vin){
+ const s=store(),result={tested:true,http:null,content_type:'not exposed',
+  response_type:'not received',result:'not_supported',battery_percent:null};
+ const host=s.getItem('polestar.c3');
+ try{
+  if(!host||!/^[a-z0-9.-]+$/i.test(host))throw Error('C3 host unavailable');
+  const token=await accessToken();
+  const requestId='zepp-test-'+Date.now().toString(36);
+  const request=grpcFrame(requestFor(vin,false,requestId));
+  const url='https://'+host+'/services.vehiclestates.battery.BatteryService/GetLatestBattery';
+  const response=await http(url,'POST',{
+   'Content-Type':'application/grpc-web-text+proto',
+   'Accept':'application/grpc-web-text',
+   'X-Grpc-Web':'1',
+   'X-User-Agent':'grpc-web-javascript/0.1',
+   'Authorization':'Bearer '+token,
+   'vin':vin
+  },toBase64(request));
+  result.http=response.status;
+  result.content_type=String(header(response,'content-type')||'not exposed').slice(0,50);
+  result.response_type=ArrayBuffer.isView(response.body)?'bytes':
+    response.body instanceof ArrayBuffer?'arraybuffer':typeof response.body;
+  if(response.status!==200){result.result='http_error';return result;}
+  if(typeof response.body!=='string'){result.result='not_text';return result;}
+  if(!/grpc-web-text/i.test(result.content_type)){
+   result.result='not_grpc_web';return result;
+  }
+  const decoded=grpcWebMessages(response.body);
+  const battery=decodeBattery(decoded.messages[decoded.messages.length-1]);
+  result.result='battery_verified';
+  result.battery_percent=battery.battery_percent;
+ }catch(e){
+  // Only fixed, non-secret diagnostics; never serialize response payloads.
+  const msg=String(e&&e.message||'');
+  result.result=/Base64/.test(msg)?'not_base64':
+    /frame|compressed|data frames/.test(msg)?'invalid_frames':
+    /battery/.test(msg)?'invalid_battery':'transport_error';
+ }
+ return result;
+}
 let probeInFlight=false;
 async function processConnectionProbe(){
  const request=store().getItem('polestar.probe.request');
@@ -396,7 +439,17 @@ async function verifyVehicleStatus(){
   trace('READY','Polestar 4 connection verified');
  }catch(e){
   s.removeItem('vehicle.verified');
-  trace('AUTH','Car selected; live status unavailable: '+String(e&&e.message||e).slice(0,70));
+  const cause=String(e&&e.message||e);
+  const test=await testWebTextTransport(vin);
+  s.setItem('polestar.webtext.probe',JSON.stringify(test));
+  if(test.result==='battery_verified'){
+   // The text path proves only a read-only status response. The native
+   // command transport and stream/trailers remain unverified.
+   trace('AUTH','Battery '+test.battery_percent+'% via gRPC-Web text. Lock/unlock unverified.');
+  }else{
+   trace('AUTH','Live status blocked by Zepp binary transport. Text alternative: '+
+    (test.http===null?'unavailable':'HTTP '+test.http+' ('+test.result+')'));
+  }
  }finally{statusVerificationInFlight=false;}
 }
 let oauthInFlight=false;
@@ -436,6 +489,7 @@ function receiveStorageChange({key}={}){
    'polestar.oauth.result','polestar.oauth.result.at',
    'polestar.vehicle.lookup','polestar.vehicle.discovery.request',
    'vehicle.verified','vehicle.source','polestar.manual.vin.request',
+   'polestar.webtext.probe',
    'polestar.vehicle.verify.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
@@ -490,7 +544,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.18-vehicle-fallback-and-clean-ui',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.19-binary-transport-check',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    const vin=store().getItem('vehicle.vin');
    if(!vin)throw Error('Sign in to your Polestar in Zepp first');
