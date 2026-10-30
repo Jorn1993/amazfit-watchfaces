@@ -120,9 +120,6 @@ Page(BasePage({
  async arm(action){
   if(this.busy)return;
   this.busy=true;
-  // Never display stale live telemetry after reconnection or a failed refresh.
-  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
-  this.render();
   try{
    const cap=await this.phoneRequest({method:'vehicle.capabilities'},12000);
    if(!cap||!cap.ok||!cap.native_verified){
@@ -159,6 +156,9 @@ Page(BasePage({
  async refresh(){
   if(this.busy)return;
   this.busy=true;
+  // Never display stale live telemetry after reconnection or a failed refresh.
+  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
+  this.render();
   try{
    const cap=await this.phoneRequest({method:'vehicle.capabilities'},12000);
    if(!cap||!cap.authenticated){this.show('Connect your Polestar ID in Zepp');return;}
