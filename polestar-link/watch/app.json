@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 19,
-      "name": "1.2.0"
+      "code": 20,
+      "name": "1.3.0"
     },
     "vender": "Personal prototype",
-    "description": "Polestar ID experimental OAuth discovery and diagnostics",
+    "description": "Experimental Polestar 4 watch companion with Zepp login and lock controls",
     "icon": "icon.png"
   },
   "permissions": [
