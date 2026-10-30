@@ -128,3 +128,13 @@ test('Sign-out removes session tokens',async()=>{
  assert.equal(storage.getItem('polestar.refresh'),'');
  assert.equal(storage.getItem('vehicle.vin'),'');
 });
+
+test('Expired OAuth message is erased, not replayed to Polestar',async()=>{
+ const {side,storage}=launch(false);
+ storage.setItem('polestar.oauth.result.at',String(Date.now()-130000));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'stale-mock-token'}));
+ side.onInit();
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
+ assert.equal(storage.getItem('polestar.oauth.result'),'');
+ assert.equal(storage.getItem('polestar.access'),'');
+});
