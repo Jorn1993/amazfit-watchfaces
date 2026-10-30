@@ -35,7 +35,8 @@ function launch(startImmediately=true,options={}){
    return {status:200,body:{authorization_endpoint:'https://polestarid.eu.polestar.com/as/authorization.oauth2'}};
   if(url.startsWith('https://polestarid.eu.polestar.com/as/authorization.oauth2?'))
    return {status:200,body:'url: "/as/aBcD/resume"',headers:{'Set-Cookie':'PF=mock-session; HttpOnly; Secure'}};
-  if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:options.noCars?[]:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
+  if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:options.noCars||options.mobileEmpty?[]:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
+  if(url.includes('/mystar-v2/'))return {status:options.v2Http||200,body:{data:{getConsumerCarsV2:options.noCars||options.v2Empty?[]:[{vin,modelName:'Polestar 4',modelYear:'2026'}]}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
    assert.equal(typeof body,'string');
@@ -218,15 +219,56 @@ test('Successful command RPC without matching exterior state is pending, not suc
  assert.equal(getCommands(),1,'Never retry a lock command automatically');
 });
 
-test('Failed vehicle discovery removes transient session credentials',async()=>{
- const {storage}=launch(true,{noCars:true});
+test('Mobile list empty: MyStar V2 fallback finds the account car',async()=>{
+ const {storage,getCommands}=launch(true,{mobileEmpty:true});
  storage.setItem('polestar.oauth.result.at',String(Date.now()));
  storage.setItem('polestar.oauth.result',JSON.stringify({
   access_token:'mock-token',refresh_token:'mock-refresh',expires_in:900
  }));
- await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
- for(const key of ['polestar.access','polestar.refresh','polestar.expires.at','vehicle.vin','polestar.c3'])
-  assert.equal(storage.getItem(key),'',key+' should be cleared');
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const report=JSON.parse(storage.getItem('polestar.vehicle.lookup'));
+ assert.equal(report.mobile_count,0);
+ assert.equal(report.consumer_v2_http,200);
+ assert.equal(report.consumer_v2_count,1);
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(storage.getItem('vehicle.name'),'Polestar 4');
+ assert.equal(getCommands(),0);
+});
+
+test('When both car APIs return no cars, keep valid login and allow password-free retry',async()=>{
+ const options={noCars:true};
+ const {storage,page,getCommands}=launch(true,options);
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'mock-token',refresh_token:'mock-refresh',expires_in:900
+ }));
+ await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
+ assert.equal(storage.getItem('polestar.access'),'mock-token','Valid account token is retained');
+ assert.equal(storage.getItem('vehicle.vin'),'');
+ const report=JSON.parse(storage.getItem('polestar.vehicle.lookup'));
+ assert.equal(report.mobile_count,0);
+ assert.equal(report.consumer_v2_count,0);
+ const ui=flatten(page.build({settingsStorage:storage}));
+ const retry=ui.find(x=>x.name==='Button'&&x.props.label==='Retry vehicle lookup (no password)');
+ assert.ok(retry);
+ options.noCars=false;
+ retry.props.onClick();
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ assert.equal(storage.getItem('vehicle.vin'),vin);
+ assert.equal(getCommands(),0);
+});
+
+test('MyStar fallback errors show safe status without leaking vehicle details',async()=>{
+ const {storage}=launch(true,{mobileEmpty:true,v2Http:403});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({access_token:'mock-token',expires_in:900}));
+ await eventually(()=>storage.getItem('polestar.login.status').includes('Vehicle lookup:'));
+ const report=JSON.parse(storage.getItem('polestar.vehicle.lookup'));
+ assert.equal(report.consumer_v2_http,403);
+ assert.equal(report.consumer_v2_count,0);
+ assert.equal(storage.getItem('vehicle.vin'),'');
+ assert.doesNotMatch(JSON.stringify(report),new RegExp(vin));
+ assert.doesNotMatch(JSON.stringify(report),/mock-token/);
 });
 
 test('Account-login feasibility check uses only synthetic cookie and no password',async()=>{
