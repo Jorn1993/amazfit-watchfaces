@@ -25,6 +25,10 @@ function launch(startImmediately=true){
  };
  let commands=0,locked=false,side,page;
  async function fetchMock({url,body}){
+  if(url.endsWith('/.well-known/openid-configuration'))
+   return {status:200,body:{authorization_endpoint:'https://polestarid.eu.polestar.com/as/authorization.oauth2'}};
+  if(url.startsWith('https://polestarid.eu.polestar.com/as/authorization.oauth2?'))
+   return {status:200,body:'url: "/as/aBcD/resume"',headers:{'Set-Cookie':'PF=mock-session; HttpOnly; Secure'}};
   if(url.includes('/app-backend/api/graphql'))return {status:200,body:{data:{vdms:{getVehiclesInformation:[{vin,content:{model:{name:'Polestar 4'}}}]}}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
@@ -136,5 +140,18 @@ test('Expired OAuth message is erased, not replayed to Polestar',async()=>{
  side.onInit();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
  assert.equal(storage.getItem('polestar.oauth.result'),'');
+ assert.equal(storage.getItem('polestar.access'),'');
+});
+
+test('Anonymous Polestar OAuth probe checks real Zepp Fetch cookie support without sending credentials',async()=>{
+ const {side,storage}=launch();
+ const result=await ask(side,'auth.preflight');
+ assert.equal(result.ok,true);
+ assert.equal(result.discovery_http,200);
+ assert.equal(result.auth_http,200);
+ assert.equal(result.login_page,true);
+ assert.equal(result.cookie_accessible,true);
+ assert.equal('cookie' in result,false);
+ assert.equal('password' in result,false);
  assert.equal(storage.getItem('polestar.access'),'');
 });
