@@ -73,3 +73,39 @@ for name,client,redirect in CLIENTS:
     })
     result=probe(authorize+"?"+query)
     print("Authorization preflight",name,result)
+
+# Check *client* support for the device grant, not just discovery metadata.
+# Never print the user/device codes or approval URLs from the response.
+for name,client,_ in CLIENTS[:2]:
+    request=urllib.request.Request(
+        BASE+"/as/device_authz.oauth2",
+        data=urllib.parse.urlencode({
+            "client_id":client,
+            "scope":"openid profile email customer:attributes",
+        }).encode(),
+        headers={
+            "Accept":"application/json",
+            "Content-Type":"application/x-www-form-urlencoded",
+            "User-Agent":"Polestar Link device-flow compatibility probe"
+        },
+        method="POST",
+    )
+    try:
+        response=urllib.request.urlopen(request,timeout=15)
+    except urllib.error.HTTPError as e:
+        response=e
+    except Exception as e:
+        print("Device grant preflight",name,{"network_error":type(e).__name__})
+        continue
+    try:
+        info=json.loads(response.read(32000))
+    except Exception:
+        info={}
+    print("Device grant preflight",name,{
+        "http":response.status,
+        "supports_device_code":bool(info.get("device_code")),
+        "supports_user_code":bool(info.get("user_code")),
+        "verification_host":urllib.parse.urlparse(info.get("verification_uri","")).hostname,
+        "error":str(info.get("error",""))[:80],
+        # Do not print error_description; it may include request details.
+    })
