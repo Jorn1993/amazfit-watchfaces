@@ -1,5 +1,6 @@
-// Polestar Link personal Zepp Settings: one primary action per stage.
-// Advanced transport diagnostics stay hidden unless requested.
+// Personal Polestar Link companion Settings.
+// Keep a stable, single-column view across reactive storage updates.
+// A valid OAuth login is distinct from verified vehicle connectivity.
 let loginEmail='';
 let loginPassword='';
 let manualVin='';
@@ -7,138 +8,106 @@ AppSettingsPage({
  build(props){
   const s=props.settingsStorage;
   const signedIn=!!s.getItem('polestar.access');
-  const vin=s.getItem('vehicle.vin')||'';
+  const vin=String(s.getItem('vehicle.vin')||'');
   const verified=s.getItem('vehicle.verified')==='true';
-  const details=s.getItem('polestar.ui.details')==='true';
-  let lookup={},report={},webtext={};
-  try{webtext=JSON.parse(s.getItem('polestar.webtext.probe')||'{}');}catch(e){}
+  const verification=String(s.getItem('polestar.vehicle.verify.status')||'');
+  let lookup={},webtext={};
   try{lookup=JSON.parse(s.getItem('polestar.vehicle.lookup')||'{}');}catch(e){}
-  try{report=JSON.parse(s.getItem('polestar.probe.result')||'{}');}catch(e){}
+  try{webtext=JSON.parse(s.getItem('polestar.webtext.probe')||'{}');}catch(e){}
   const rawStatus=s.getItem('polestar.login.status')||'';
   const status=rawStatus.replace(/^(?:AUTH|READY|ERROR):\s*/,'');
-  const primary={borderRadius:'12px',padding:'12px',marginTop:'10px',
-   background:'#245d53',color:'#ffffff'};
-  const secondary={borderRadius:'10px',padding:'9px',marginTop:'12px',
-   background:'#eef2f3',color:'#245d53'};
-  const field={borderRadius:'10px',padding:'12px',background:'#eef2f3'};
-  const content=[
-   Text({bold:true,style:{fontSize:'25px',marginBottom:'10px'}},'Polestar Link')
-  ];
+  const primary={borderRadius:'12px',padding:'12px',background:'#245d53',color:'#fff'};
+  const secondary={borderRadius:'10px',padding:'10px',background:'#eef2f3',color:'#245d53'};
+  const field={borderRadius:'9px',padding:'12px',background:'#eef2f3'};
+  const textMuted={color:'#667075',fontSize:'13px'};
+  const content=[Text({bold:true,style:{fontSize:'25px'}},'Polestar Link')];
+  const add=component=>content.push(component);
   if(!signedIn){
-   content.push(
-    Text({paragraph:true,style:{color:'#555555',marginBottom:'14px'}},
-     'Connect your Polestar account to your watch.'),
-    TextInput({label:'Polestar email',value:loginEmail||s.getItem('polestar.email')||'',
-     placeholder:'Email address',onChange:value=>{loginEmail=String(value||'');},
-     subStyle:field}),
-    TextInput({label:'Polestar password (optional if already signed in)',
-     value:loginPassword,placeholder:'Password',onChange:value=>{
-      loginPassword=String(value||'');
-     },subStyle:{...field,WebkitTextSecurity:'disc',webkitTextSecurity:'disc'}}),
-    Button({label:'Connect to Polestar',style:primary,onClick:()=>{
-     const email=(loginEmail||s.getItem('polestar.email')||'').trim();
-     if(!email){s.setItem('polestar.login.status','ERROR: Enter your email');return;}
-     s.setItem('polestar.email',email);
-     s.setItem('polestar.login.status','AUTH: Connecting to Polestar ID…');
-     s.setItem('polestar.login.request.at',String(Date.now()));
-     s.setItem('polestar.login.request',JSON.stringify({email,password:loginPassword}));
-     loginPassword='';
-    }}),
-    Text({paragraph:true,style:{color:'#777777',fontSize:'12px'}},
-     'Leave the password empty to try an existing Polestar login session.')
-   );
+   add(Text({paragraph:true,style:textMuted},'Connect your Polestar account.'));
+   add(TextInput({label:'Polestar email',
+    value:loginEmail||s.getItem('polestar.email')||'',
+    placeholder:'Email address',subStyle:field,
+    onChange:value=>{loginEmail=String(value||'');}}));
+   add(TextInput({label:'Polestar password (optional if already signed in)',
+    value:loginPassword,placeholder:'Password',
+    subStyle:{...field,WebkitTextSecurity:'disc',webkitTextSecurity:'disc'},
+    onChange:value=>{loginPassword=String(value||'');}}));
+   add(Button({label:'Connect to Polestar',style:primary,onClick:()=>{
+    const email=(loginEmail||s.getItem('polestar.email')||'').trim();
+    if(!email){s.setItem('polestar.login.status','ERROR: Enter your email');return;}
+    s.setItem('polestar.email',email);
+    s.setItem('polestar.login.status','AUTH: Connecting to Polestar ID…');
+    s.setItem('polestar.login.request.at',String(Date.now()));
+    s.setItem('polestar.login.request',JSON.stringify({email,password:loginPassword}));
+    loginPassword='';
+   }}));
+   add(Text({paragraph:true,style:textMuted},
+    'Leave the password empty if you have an active Polestar session.'));
   }else if(!vin){
-   content.push(
-    Text({bold:true,style:{color:'#236956'}},'Polestar ID connected'),
-    Text({paragraph:true,style:{color:'#555555',marginTop:'10px'}},
-     'Your vehicle is not listed by the account APIs. Linked or secondary accounts can require a VIN.'),
-    TextInput({label:'Vehicle VIN (optional)',value:manualVin,
-     placeholder:'17-character VIN',onChange:value=>{
-      manualVin=String(value||'').trim().toUpperCase();
-     },subStyle:field}),
-    Text({paragraph:true,style:{color:'#777777',fontSize:'12px'}},
-     'Leave VIN empty to search again, or enter the VIN from your vehicle details.'),
-    Button({label:'Find my Polestar 4',style:primary,onClick:()=>{
-     if(manualVin){
-      if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(manualVin)){
-       s.setItem('polestar.login.status','ERROR: VIN must be 17 valid characters');
-       return;
-      }
-      s.setItem('polestar.login.status','AUTH: Checking vehicle VIN…');
-      s.setItem('polestar.manual.vin.request',manualVin);
-     }else{
-      s.setItem('polestar.login.status','AUTH: Searching vehicle accounts…');
-      s.setItem('polestar.vehicle.discovery.request',String(Date.now()));
+   add(Text({bold:true,style:{color:'#236956'}},'Polestar ID connected'));
+   add(Text({paragraph:true,style:textMuted},
+    'Your vehicle is not listed by the account APIs. You can search again or enter its VIN.'));
+   add(TextInput({label:'Vehicle VIN (optional)',value:manualVin,
+    placeholder:'17-character VIN',subStyle:field,
+    onChange:value=>{manualVin=String(value||'').trim().toUpperCase();}}));
+   add(Button({label:'Find my Polestar 4',style:primary,onClick:()=>{
+    if(manualVin){
+     if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(manualVin)){
+      s.setItem('polestar.login.status','ERROR: VIN must be 17 valid characters');return;
      }
-    }})
-   );
+     s.setItem('polestar.vehicle.verify.status','queued');
+     s.setItem('polestar.login.status','AUTH: Testing your VIN with Polestar cloud…');
+     s.setItem('polestar.manual.vin.request',manualVin);
+    }else{
+     s.setItem('polestar.login.status','AUTH: Searching linked Polestar vehicles…');
+     s.setItem('polestar.vehicle.discovery.request',String(Date.now()));
+    }
+   }}));
   }else{
-   content.push(
-    Text({bold:true,style:{color:'#236956'}},
-     (s.getItem('vehicle.name')||'Polestar 4')+(verified?' — connected':' — configured')),
-    Text({paragraph:true,style:{color:'#555555'}},
-     verified?'Vehicle status communication was verified.':
-     'Vehicle identification is set, but live status is not verified yet.'),
-    verified?Text({},''):Button({label:'Verify vehicle connection',style:primary,
-     onClick:()=>{
-      s.setItem('polestar.login.status','AUTH: Verifying car status…');
-      s.setItem('polestar.vehicle.verify.request',String(Date.now()));
-     }})
-   );
+   add(Text({bold:true,style:{color:'#236956'}},
+    (s.getItem('vehicle.name')||'Polestar 4')+(verified?' — connected':' — configured')));
+   add(Text({paragraph:true,style:textMuted},verified?
+    'Live native vehicle status has been verified.':
+    'VIN configured. Vehicle data and commands are not verified yet.'));
+   if(!verified)add(Button({label:'Verify vehicle connection',style:primary,onClick:()=>{
+    // A visible queued status makes a missing Side Service listener detectable.
+    s.setItem('polestar.vehicle.verify.status','queued');
+    s.setItem('polestar.login.status','AUTH: Checking native and text transport…');
+    s.setItem('polestar.vehicle.verify.request',String(Date.now()));
+   }}));
   }
-  if(status)content.push(Text({paragraph:true,style:{
-   marginTop:'14px',color:rawStatus.startsWith('ERROR:')?'#a23838':'#555555'
+  const verificationLabel=verification==='queued'?'Verification requested — waiting for phone service…':
+   verification==='testing_native'?'Testing native vehicle connection…':
+   verification==='testing_text'?'Native connection unavailable. Testing text transport…':
+   verification==='native_verified'?'Live native vehicle status verified.':
+   verification.startsWith('text_')?
+    'Text transport: '+String(webtext.http===null||webtext.http===undefined?'no response':'HTTP '+webtext.http)+
+    ' ('+String(webtext.result||'unknown')+'). Lock/unlock not verified.':'';
+  if(signedIn&&verificationLabel)
+   add(Text({paragraph:true,style:{color:verified?'#236956':'#555555'}},verificationLabel));
+  else if(status)add(Text({paragraph:true,style:{
+   color:rawStatus.startsWith('ERROR:')?'#a23838':'#555555'
   }},status));
-  if(signedIn)content.push(
-   Button({label:'Sign out',style:secondary,onClick:()=>{
-    s.setItem('polestar.session.clear',String(Date.now()));
-   }})
-  );
-  content.push(
-   Button({label:details?'Hide technical details':'Technical details',
-    style:{...secondary,marginTop:'22px'},onClick:()=>{
-     s.setItem('polestar.ui.details',details?'false':'true');
-    }})
-  );
-  if(details){
-   const info=(value)=>value===null||value===undefined?'—':String(value);
-   content.push(
-    Text({bold:true,style:{marginTop:'12px'}},'Vehicle discovery'),
-    Text({paragraph:true},'Mobile API: HTTP '+info(lookup.mobile_http)+
-     ' · '+info(lookup.mobile_count||0)+' cars · '+info(lookup.mobile_shape)),
-    Text({paragraph:true},'MyStar V2: HTTP '+info(lookup.consumer_v2_http)+
-     ' · raw header '+info(lookup.consumer_v2_raw_http)+
-     ' · '+info(lookup.consumer_v2_count||0)+' cars'),
-    Text({paragraph:true},'C3 car list: HTTP '+info(lookup.c3_http)+
-     ' · '+info(lookup.c3_count||0)+' cars · '+info(lookup.c3_shape)),
-    Text({paragraph:true},'Polestar ID: '+(signedIn?'authenticated':'not connected')),
-    Text({paragraph:true},'Vehicle status: '+(verified?'verified':'not verified')),
-    Text({paragraph:true,style:{color:'#777777',fontSize:'12px'}},
-     'Diagnostic statuses only. No passwords, VINs, or tokens are shown.'),
-    Text({bold:true,style:{marginTop:'12px'}},'Zepp network'),
-    Text({paragraph:true},'Identity HTTP: '+info(report.auth_http)+
-     ' · PKCE: '+(report.pkce_secure_crypto?'available':'not tested')),
-    Text({paragraph:true},'gRPC binary: '+(report.grpc_binary_readable?'available':'not verified')),
-    webtext.tested?Text({paragraph:true},
-      'gRPC-Web text: '+String(webtext.http===null?'no HTTP response':'HTTP '+webtext.http)+
-      ' · '+String(webtext.result||'unknown')+
-      (webtext.battery_percent===null?'':' · battery '+webtext.battery_percent+'%')
-    ):Text({},''),
-    webtext.tested?Text({paragraph:true},
-      'Response: '+String(webtext.content_type||'unknown')+
-      ' · '+String(webtext.response_type||'unknown')):Text({},''),
-    Button({label:'Run compatibility check',style:secondary,onClick:()=>{
-     s.setItem('polestar.probe.status','Checking compatibility…');
-     s.setItem('polestar.probe.request',String(Date.now()));
-    }})
-   );
+  if(signedIn)add(Button({label:'Sign out',style:secondary,onClick:()=>{
+   s.setItem('polestar.session.clear',String(Date.now()));
+  }}));
+  if(signedIn){
+   const val=x=>x===undefined||x===null?'—':String(x);
+   add(Text({bold:true,style:{marginTop:'14px'}},'Connection diagnostics'));
+   add(Text({paragraph:true,style:textMuted},
+    'Car lists: mobile '+val(lookup.mobile_count||0)+
+    ', MyStar HTTP '+val(lookup.consumer_v2_http)+
+    ', C3 '+val(lookup.c3_shape||'not tested')));
+   add(Text({paragraph:true,style:textMuted},
+    'Native gRPC: '+(verified?'verified':'unavailable / unverified')));
+   add(Text({paragraph:true,style:textMuted},
+    'gRPC-Web text: '+(webtext.tested?
+     (webtext.http===null?'no response':'HTTP '+webtext.http)+
+       ' ('+(webtext.result||'unknown')+')':'not tested')));
   }
-  // View is a div-like CSS container in Zepp Settings. Explicit block
-  // wrappers prevent inline Text/Button elements from sharing a line, as
-  // observed on the owner's Android Zepp (v1.3.18).
   return View({style:{
    padding:'22px',background:'#ffffff',display:'flex',
-   flexDirection:'column',alignItems:'stretch',gap:'4px'
+   flexDirection:'column',alignItems:'stretch',gap:'6px'
   }},content.map(item=>View({style:{
    display:'block',width:'100%',marginBottom:'12px',clear:'both'
   }},[item])));
