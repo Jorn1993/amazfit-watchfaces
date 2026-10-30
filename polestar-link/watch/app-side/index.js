@@ -1,5 +1,6 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { sha256 } from 'js-sha256';
+import { requestFor, grpcFrame, grpcPayload, decodeBattery, decodeExterior, decodeInvocation } from './proto.js';
 const store=()=>settings.settingsStorage;
 const ID='https://polestarid.eu.polestar.com';
 const CLIENT='lp8dyrd_10', REDIRECT='polestar-explore://explore.polestar.com';
@@ -15,10 +16,15 @@ function b64(bytes){
  for(let i=0;i<bytes.length;i+=3){const a=bytes[i],b=bytes[i+1],c=bytes[i+2];out+=abc[a>>2]+abc[((a&3)<<4)|((b||0)>>4)];if(i+1<bytes.length)out+=abc[((b&15)<<2)|((c||0)>>6)];if(i+2<bytes.length)out+=abc[c&63];}
  return out;
 }
-function randomVerifier(){let a=[];for(let i=0;i<48;i++)a.push(Math.floor(Math.random()*256));return b64(a);}
+function randomVerifier(){
+ const random=typeof crypto!=='undefined'&&crypto&&crypto.getRandomValues;
+ if(!random)throw Error('Secure random API unavailable in Zepp side service');
+ const a=new Uint8Array(32);crypto.getRandomValues(a);return b64(a);
+}
 function codeFrom(location){const m=String(location).match(/[?&]code=([^&#]+)/);return m?decodeURIComponent(m[1]):null;}
 async function http(url,method='GET',headers={},body){
  const r=await fetch({url,method,headers,...(body===undefined?{}:{body})});
+ if(typeof r.status!=='number'&&typeof r.statusCode==='number')r.status=r.statusCode;
  return r;
 }
 async function authenticate(email,password){
@@ -45,10 +51,27 @@ async function authenticate(email,password){
  const tokens=json(tokenResponse);
  if(!tokens||!tokens.access_token)throw Error('Token exchange HTTP '+tokenResponse.status);
  store().setItem('polestar.access',tokens.access_token);
+ store().setItem('polestar.expires.at',String(Date.now()+(Number(tokens.expires_in)||3600)*1000-60000));
  if(tokens.refresh_token)store().setItem('polestar.refresh',tokens.refresh_token);
  store().setItem('polestar.token.endpoint',discovery.token_endpoint);
  trace('AUTH','Authenticated');
  return tokens.access_token;
+}
+async function accessToken(){
+ const token=store().getItem('polestar.access');
+ if(!token)throw Error('Sign in using Zepp first');
+ const expires=Number(store().getItem('polestar.expires.at')||0);
+ if(!expires||Date.now()<expires)return token;
+ const refresh=store().getItem('polestar.refresh');
+ const url=store().getItem('polestar.token.endpoint');
+ if(!refresh||!url)throw Error('Session expired. Sign in again in Zepp.');
+ const r=await http(url,'POST',{'Content-Type':'application/x-www-form-urlencoded'},form({grant_type:'refresh_token',refresh_token:refresh,client_id:CLIENT}));
+ const t=json(r);
+ if(r.status!==200||!t||!t.access_token)throw Error('Session expired. Sign in again in Zepp.');
+ store().setItem('polestar.access',t.access_token);
+ store().setItem('polestar.expires.at',String(Date.now()+(Number(t.expires_in)||3600)*1000-60000));
+ if(t.refresh_token)store().setItem('polestar.refresh',t.refresh_token);
+ return t.access_token;
 }
 async function vehicles(token){
  const query='query GetVDMSCars { vdms { getVehiclesInformation { vin internalVehicleIdentifier registrationNo modelYear content { model { name } } } } }';
@@ -67,50 +90,86 @@ async function endpoint(token){
  const host=data.c3.grpcHost;if(!/^[a-z0-9.-]+$/i.test(host))throw Error('Invalid C3 host');
  store().setItem('polestar.c3',host);return host;
 }
-function pbString(field,value){const bytes=Array.from(unescape(encodeURIComponent(value)),c=>c.charCodeAt(0));return [field*8+2,bytes.length,...bytes];}
-function frame(bytes){const n=bytes.length;return String.fromCharCode(0,(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255,...bytes);}
+function grpcStatus(r){
+ const h=header(r,'grpc-status');
+ if(h!=='' && String(h)!=='0')throw Error('Polestar gRPC status '+h);
+}
 async function grpc(method,vin){
- const host=store().getItem('polestar.c3'),token=store().getItem('polestar.access');
- if(!host||!token||!vin)throw Error('Sign in first');
- const request=pbString(1,vin);
- const payload=method==='GetLatestBattery'?request:[10,request.length,...request];
- const path=method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':'/invocation.InvocationService/'+method;
- const r=await http('https://'+host+path,'POST',{'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,'vin':vin,'grpc-accept-encoding':'identity','User-Agent':'grpc-java-okhttp/1.68.2'},frame(payload));
- trace('GRPC',method+' HTTP '+r.status+' grpc-status '+header(r,'grpc-status'));
+ const host=store().getItem('polestar.c3'),token=await accessToken();
+ if(!host||!vin)throw Error('Connect to your Polestar in Zepp first');
+ const isCommand=method==='Lock'||method==='Unlock';
+ const request=grpcFrame(requestFor(vin,isCommand));
+ const path=method==='GetLatestBattery'?'/services.vehiclestates.battery.BatteryService/GetLatestBattery':
+  method==='GetLatestExterior'?'/services.vehiclestates.exterior.ExteriorService/GetLatestExterior':
+  '/invocation.InvocationService/'+method;
+ // Native Zepp Fetch must preserve the binary body and support HTTP/2 for this call.
+ const r=await http('https://'+host+path,'POST',{
+  'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,
+  'vin':vin,'grpc-accept-encoding':'identity','User-Agent':'grpc-java-okhttp/1.68.2'
+ },request);
  if(r.status!==200)throw Error(method+' HTTP '+r.status);
- const grpcStatus=header(r,'grpc-status');
- if(grpcStatus==='')throw Error(method+' response lacks gRPC completion status; cannot verify success');
- if(String(grpcStatus)!=='0')throw Error(method+' gRPC status '+grpcStatus);
- return {http:r.status,grpcStatus:header(r,'grpc-status'),body:r.body};
+ grpcStatus(r);
+ const raw=grpcPayload(r.body);
+ if(!raw.length)throw Error('Polestar returned empty gRPC message');
+ return {payload:raw,complete:header(r,'grpc-status')==='0'};
 }
 AppSideService(BaseSideService({
  onInit(){
-  store().addListener('change',async ({key})=>{
-   if(key!=='polestar.login.request')return;
+  store().addListener('change',async ({key,newValue})=>{
+   if(key==='polestar.session.clear'){
+    for(const k of ['polestar.access','polestar.refresh','polestar.expires.at','polestar.c3','vehicle.vin','vehicle.name','polestar.login.request'])store().removeItem(k);
+    store().setItem('polestar.login.status','Disconnected');return;
+   }
+   if(key!=='polestar.login.request'||!newValue)return;
+   let input;
    try{
-    const raw=store().getItem('polestar.login.request');
-    const input=JSON.parse(raw||'{}');
+    input=JSON.parse(newValue);
+    // Always clear the temporary credential message before network activity.
     store().removeItem('polestar.login.request');
-    if(!input.email||!input.password)throw Error('Enter email and password');
+    if(!input.email||!input.password)throw Error('Email and password required');
     const token=await authenticate(input.email,input.password);
+    input.password='';
     const car=await vehicles(token);
     await endpoint(token);
-    trace('READY','Connected '+(car.content?.model?.name||'Polestar'));
-   }catch(e){trace('ERROR',e.message||e);}
+    store().setItem('polestar.login.status','Connected: '+(car.content&&car.content.model&&car.content.model.name||'Polestar'));
+    trace('READY','Car connected');
+   }catch(e){
+    store().setItem('polestar.login.status',String(e.message||e).slice(0,140));
+    trace('ERROR',e.message||e);
+   }finally{if(input)input.password='';store().removeItem('polestar.login.request');}
   });
+  // Clear credentials left by a terminated previous session rather than replay them.
+  store().removeItem('polestar.login.request');
  },
  async onRequest(req,res){
   try{
-   if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.2.0-experimental'});return;}
+   if(req.method==='zepp.ping'){res(null,{ok:true,version:'1.3.0-experimental'});return;}
    const vin=store().getItem('vehicle.vin');
-   if(req.method==='vehicle.status'){const result=await grpc('GetLatestBattery',vin);res(null,{ok:false,error:'gRPC response decoding for battery/range is not implemented'});return;}
+   if(!vin)throw Error('Sign in to your Polestar in Zepp first');
+   if(req.method==='vehicle.status'){
+    const result=await grpc('GetLatestBattery',vin);
+    const data=decodeBattery(result.payload);
+    try{
+     const ext=await grpc('GetLatestExterior',vin);
+     data.lock_state=decodeExterior(ext.payload).lock_state;
+    }catch(e){data.lock_state='unknown';}
+    res(null,{ok:true,...data});return;
+   }
    if(req.method==='vehicle.command'){
     const p=req.params||{};
     if(p.confirmed!==true||!['lock','unlock'].includes(p.action))throw Error('Confirmation required');
-    const result=await grpc(p.action==='lock'?'Lock':'Unlock',vin);
-    res(null,{ok:false,error:'gRPC transport completed; vehicle command delivery is not verified'});return;
+    const method=p.action==='lock'?'Lock':'Unlock';
+    const result=await grpc(method,vin);
+    const invocation=decodeInvocation(result.payload);
+    if(!invocation.ok){
+     res(null,{ok:false,error:'Polestar '+method+': '+invocation.status_label});return;
+    }
+    if(!result.complete){
+     res(null,{ok:false,error:'Polestar reports success but gRPC completion is unverified; check the car'});return;
+    }
+    res(null,{ok:true,command:method,status:invocation.status_label});return;
    }
    throw Error('Unknown request');
-  }catch(e){res(null,{ok:false,error:String(e.message||e)});}
+  }catch(e){res(null,{ok:false,error:String(e.message||e).slice(0,160)});}
  }
 }));
