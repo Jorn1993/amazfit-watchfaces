@@ -1,0 +1,9 @@
+{
+  "name": "polestar-link-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@zeppos/zml": "0.0.43"
+  }
+}
