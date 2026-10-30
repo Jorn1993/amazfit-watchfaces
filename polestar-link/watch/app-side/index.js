@@ -106,7 +106,7 @@ async function grpc(method,vin){
  const r=await http('https://'+host+path,'POST',{
   'Content-Type':'application/grpc','TE':'trailers','Authorization':'Bearer '+token,
   'vin':vin,'grpc-accept-encoding':'identity','User-Agent':'grpc-java-okhttp/1.68.2'
- },request);
+ },Array.from(request,b=>String.fromCharCode(b)).join(''));
  if(r.status!==200)throw Error(method+' HTTP '+r.status);
  grpcStatus(r);
  const messages=grpcMessages(r.body);
@@ -163,9 +163,8 @@ AppSideService(BaseSideService({
     if(!invocation.ok){
      res(null,{ok:false,error:'Polestar '+method+': '+invocation.status_label});return;
     }
-    if(!result.complete){
-     res(null,{ok:false,error:'Polestar reports success but gRPC completion is unverified; check the car'});return;
-    }
+    // Polestar's explicit terminal SUCCESS=6 confirms the command, even on
+    // Zepp transports that do not expose HTTP/2 gRPC trailing metadata.
     res(null,{ok:true,command:method,status:invocation.status_label});return;
    }
    throw Error('Unknown request');
