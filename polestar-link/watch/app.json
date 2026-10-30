@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "code": 28,
-      "name": "1.3.8"
+      "code": 29,
+      "name": "1.3.9"
     },
     "vender": "Personal prototype",
-    "description": "Credential-free OAuth and gRPC capability tests with safe password masking preview",
+    "description": "Polestar OAuth transport and masking compatibility check; credential-free",
     "icon": "icon.png"
   },
   "permissions": [
