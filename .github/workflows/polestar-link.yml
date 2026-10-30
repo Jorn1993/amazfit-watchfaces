@@ -73,31 +73,46 @@ jobs:
                   except zipfile.BadZipFile:
                       print('PHONE COMPONENT NOT ZIP:',name)
 
-          # Zepp developer Scan only accepts preview-mode packages.
+          # The Zepp phone service must be in preview mode as well as the watch.
+          # Previously only device.zip was converted, leaving app-side.zip in
+          # production mode. That produced a watch UI without a live companion.
           with zipfile.ZipFile(io.BytesIO(payload)) as outer:
               contents={n:outer.read(n) for n in outer.namelist()}
-          with zipfile.ZipFile(io.BytesIO(contents['device.zip'])) as device:
-              device_contents={n:device.read(n) for n in device.namelist()}
-          manifest=json.loads(device_contents['app.json'])
-          manifest.setdefault('packageInfo',{})['mode']='preview'
-          device_contents['app.json']=json.dumps(manifest,separators=(',',':')).encode()
-          rebuilt_device=io.BytesIO()
-          with zipfile.ZipFile(rebuilt_device,'w',zipfile.ZIP_DEFLATED) as device:
-              for n,data in device_contents.items():device.writestr(n,data)
-          contents['device.zip']=rebuilt_device.getvalue()
+          for component in ('device.zip','app-side.zip'):
+              if component not in contents:
+                  raise RuntimeError('Missing required component: '+component)
+              with zipfile.ZipFile(io.BytesIO(contents[component])) as component_zip:
+                  files={n:component_zip.read(n) for n in component_zip.namelist()}
+              if 'app.json' not in files:
+                  raise RuntimeError('Missing app.json in '+component)
+              component_manifest=json.loads(files['app.json'])
+              previous_mode=component_manifest.get('packageInfo',{}).get('mode')
+              component_manifest.setdefault('packageInfo',{})['mode']='preview'
+              files['app.json']=json.dumps(component_manifest,separators=(',',':')).encode()
+              archive=io.BytesIO()
+              with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as zipped:
+                  for n,data in files.items():zipped.writestr(n,data)
+              contents[component]=archive.getvalue()
+              print('Converted',component,'from',previous_mode,'to preview')
           rebuilt=io.BytesIO()
           with zipfile.ZipFile(rebuilt,'w',zipfile.ZIP_DEFLATED) as outer:
               for n,data in contents.items():outer.writestr(n,data)
           payload=rebuilt.getvalue()
           with zipfile.ZipFile(io.BytesIO(payload)) as z:
-              assert 'device.zip' in z.namelist(),'Invalid ZPK'
-              with zipfile.ZipFile(io.BytesIO(z.read('device.zip'))) as d:
-                  manifest=json.loads(d.read('app.json'))
-                  assert manifest['app']['appId']==1098347,manifest
-                  assert manifest['app']['appType']=='app',manifest
-                  assert manifest['packageInfo']['mode']=='preview',manifest
-                  assert manifest['app']['version']['name']==json.loads(Path('polestar-link/watch/app.json').read_text())['app']['version']['name'],manifest
-                  assert manifest['module']['setting']['path']=='setting/index',manifest
+              for component in ('device.zip','app-side.zip'):
+                  with zipfile.ZipFile(io.BytesIO(z.read(component))) as inner:
+                      manifest=json.loads(inner.read('app.json'))
+                      assert manifest['app']['appId']==1098347,manifest
+                      assert manifest['app']['appType']=='app',manifest
+                      assert manifest['packageInfo']['mode']=='preview',manifest
+                      assert manifest['app']['version']['name']==json.loads(Path('polestar-link/watch/app.json').read_text())['app']['version']['name'],manifest
+                      assert manifest['module']['app-side']['path']=='app-side/index',manifest
+                      assert manifest['module']['setting']['path']=='setting/index',manifest
+                      if component=='app-side.zip':
+                          assert 'setting.js' in inner.namelist(),'Missing settings UI'
+                          assert 'app-side.js' in inner.namelist(),'Missing phone service'
+                          sidecode=inner.read('app-side.js')
+                          assert b'polestar.login.request' in sidecode,'Phone-side auth is missing'
           public=Path('polestar-link/public');public.mkdir(parents=True,exist_ok=True)
           version=manifest['app']['version']['name']
           (public/f'polestar-link-v{version}.zpk').write_bytes(payload)
