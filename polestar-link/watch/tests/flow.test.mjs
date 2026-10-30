@@ -56,6 +56,11 @@ function launch(startImmediately=true,options={}){
    }
    if(url.includes('/GetLatestBattery'))return options.grpcBinaryBlocked?{status:200,headers:{},body:'not binary'}:{status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
    if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,(options.staleExterior?false:locked)?2:1)))};
+   if(['/HonkFlash','/WindowControl','/ClimatizationStart','/ClimatizationStop'].some(s=>url.endsWith(s))){
+    commands++;
+    return {status:200,headers:{'grpc-status':'0'},
+     body:proto.grpcFrame(msg(1,num(3,6)))};
+   }
    if(url.endsWith('/Lock')||url.endsWith('/Unlock')){
     commands++;locked=url.endsWith('/Lock');
     return {status:200,headers:{'grpc-status':'0'},body:Uint8Array.from([...proto.grpcFrame(msg(1,num(3,1))),...proto.grpcFrame(msg(1,num(3,4))),...proto.grpcFrame(msg(1,num(3,6)))])};
@@ -386,7 +391,7 @@ test('Secondary-car VIN entry remains unverified if Zepp cannot read gRPC bytes'
  assert.equal(probe.result,'http_error');
  const command=await ask(side,'vehicle.command',{action:'unlock',confirmed:true});
  assert.equal(command.ok,false);
- assert.match(command.error,/Verify vehicle status/);
+ assert.match(command.error,/Verify live C3 status/);
  assert.equal(getCommands(),0);
 });
 
@@ -457,4 +462,37 @@ test('VIN entry automatically runs text transport diagnostic and exposes a resul
  assert.match(text,/gRPC-Web text: HTTP 415/);
  assert.equal(storage.getItem('vehicle.verified'),'');
  assert.equal(getCommands(),0);
+});
+
+test('Reference C3 capability list is visible but commands remain gated by verified transport',async()=>{
+ const {storage,side,getCommands}=launch();
+ let cap=await ask(side,'vehicle.capabilities');
+ assert.equal(cap.ok,true);
+ assert.equal(cap.authenticated,false);
+ assert.equal(cap.native_verified,false);
+ assert.equal(cap.control_transport,'unavailable');
+ assert.equal(cap.controls.includes('trunk_unlock'),true);
+ assert.equal(cap.controls.includes('windows_close'),true);
+ let denied=await ask(side,'vehicle.command',{action:'trunk_unlock',confirmed:true});
+ assert.equal(denied.ok,false);
+ assert.equal(getCommands(),0);
+});
+test('Reference additional C3 actions never report verified physical effects from RPC alone',async()=>{
+ const {storage,side,getCommands}=launch();
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'simulated-token',refresh_token:'mock-refresh',expires_in:1800
+ }));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const status=await ask(side,'vehicle.status');
+ assert.equal(status.ok,true);
+ const cap=await ask(side,'vehicle.capabilities');
+ assert.equal(cap.native_verified,true);
+ for(const action of ['trunk_unlock','honk_flash','windows_close','climate_start','climate_stop']){
+  const result=await ask(side,'vehicle.command',{action,confirmed:true});
+  assert.equal(result.ok,false);
+  assert.equal(result.pending,true);
+  assert.match(result.error,/not yet verified/);
+ }
+ assert.equal(getCommands(),5);
 });
