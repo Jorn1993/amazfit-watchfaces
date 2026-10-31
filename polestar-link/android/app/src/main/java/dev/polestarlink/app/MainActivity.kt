@@ -171,7 +171,16 @@ private fun CompanionScreen(
         if (busy || !signedIn || app.repository.vin == null) return
         scope.launch {
             busy = true
-            try { app.repository.refresh(); message = null }
+            try {
+                app.repository.refresh()
+                message = null
+                // Optional detailed C3 reads update window and climate toggle
+                // cards without delaying the basic battery/range dashboard.
+                scope.launch {
+                    try { app.repository.refreshDetails() }
+                    catch (_: Exception) { /* optional service unavailable */ }
+                }
+            }
             catch (e: Exception) { message = e.message }
             finally { busy = false }
         }
