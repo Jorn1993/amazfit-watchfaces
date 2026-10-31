@@ -229,6 +229,49 @@ class PolestarRepository(
         }
     }
 
+    /** Chronos charge-timer override from the Python C3 reference.
+     * This is a one-shot actuation; no retry even when the server times out.
+     */
+    suspend fun chargeOverride(start: Boolean): CommandResult = withContext(Dispatchers.IO) {
+        val latest = mutableStatus.value ?: error("Refresh live C3 status first")
+        require(System.currentTimeMillis() - latest.fetchedAt < 15 * 60_000) {
+            "Vehicle state too old. Refresh before changing charging."
+        }
+        val id = vin ?: error("Vehicle not configured")
+        val host = discover(auth.validToken())
+        val (connection, channel) = connected(host, auth.validToken(), id)
+        try {
+            val request = chronosEnvelope(id)
+            val action = if (start) "StartOverrideChargeTimer" else "StopOverrideChargeTimer"
+            val response = unary(
+                channel, "/chronos.services.v1.ChargeNowService/$action", request, 18
+            )
+            val status = C3Message.read(response).child(3)?.integer(1)
+            CommandResult(status == 1, false,
+                "Polestar responded to charge override. " +
+                "Charging state must be refreshed to verify the physical result.")
+        } catch (e: Exception) {
+            CommandResult(false, false,
+                "Charging request could not be confirmed. Refresh before retrying.")
+        } finally { connection.shutdownNow() }
+    }
+
+    companion object {
+        fun chronosEnvelope(vin: String): ByteArray {
+            val timezoneMinutes = java.util.TimeZone.getDefault().getOffset(
+                System.currentTimeMillis()
+            ) / 60_000
+            val tz = packet { it.writeInt32(1, timezoneMinutes) }
+            val id = packet {
+                it.writeString(1, UUID.randomUUID().toString())
+                it.writeString(2, vin)
+                it.writeString(3, "RCS")
+                it.writeByteArray(4, tz)
+            }
+            return packet { it.writeByteArray(1, id) }
+        }
+    }
+
     /** Command results are never marked successful without the terminal C3 status. */
     suspend fun command(action: String): CommandResult = withContext(Dispatchers.IO) {
         val snapshot = mutableStatus.value ?: error("Refresh real vehicle status before controls")
