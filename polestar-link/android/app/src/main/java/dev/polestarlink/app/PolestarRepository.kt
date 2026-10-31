@@ -8,6 +8,8 @@ import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.grpc.Metadata
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import io.grpc.MethodDescriptor
 import io.grpc.okhttp.OkHttpChannelBuilder
 import io.grpc.stub.ClientCalls
@@ -93,9 +95,12 @@ class PolestarRepository(
         md.put(Metadata.Key.of("vin", Metadata.ASCII_STRING_MARSHALLER), vin)
         return ch to ClientInterceptors.intercept(ch, MetadataUtils.newAttachHeadersInterceptor(md))
     }
-    private fun unary(channel: Channel, name: String, payload: ByteArray): ByteArray =
-        ClientCalls.blockingUnaryCall(channel, method(name),
-            CallOptions.DEFAULT.withDeadlineAfter(18, TimeUnit.SECONDS), payload)
+    private fun unary(
+        channel: Channel, name: String, payload: ByteArray, timeoutSeconds: Long = 18
+    ): ByteArray = ClientCalls.blockingUnaryCall(
+        channel, method(name),
+        CallOptions.DEFAULT.withDeadlineAfter(timeoutSeconds, TimeUnit.SECONDS), payload
+    )
 
     suspend fun refresh(): VehicleStatus = withContext(Dispatchers.IO) {
         try {
@@ -162,35 +167,83 @@ class PolestarRepository(
         val (connection, channel) = connected(host, token, id)
         try {
             val input = invocationRequest(id, action, spec.second)
-            val iterator = ClientCalls.blockingServerStreamingCall(
-                channel, method("/invocation.InvocationService/${spec.first}", true),
-                CallOptions.DEFAULT.withDeadlineAfter(45, TimeUnit.SECONDS), input
-            )
             var terminal = 0
-            while (iterator.hasNext()) {
-                terminal = decodeInvocation(iterator.next())
-                if (terminal == 6) break
-                if (terminal in setOf(2, 5, 7, 8, 9, 10, 11, 12))
-                    break
-            }
-            if (terminal != 6) {
-                return@withContext CommandResult(false, false,
-                    "C3 did not confirm the command (status $terminal)")
+            var connectionTimedOut = false
+            try {
+                val iterator = ClientCalls.blockingServerStreamingCall(
+                    channel, method("/invocation.InvocationService/${spec.first}", true),
+                    // The previous 45-second wait produced DEADLINE_EXCEEDED on the
+                    // real vehicle. A shorter bounded wait plus *read-only* status
+                    // reconciliation avoids blindly repeating actuation.
+                    CallOptions.DEFAULT.withDeadlineAfter(25, TimeUnit.SECONDS), input
+                )
+                while (iterator.hasNext()) {
+                    terminal = decodeInvocation(iterator.next())
+                    if (terminal == 6 || terminal in setOf(2, 5, 7, 8, 9, 10, 11, 12))
+                        break
+                }
+            } catch (e: StatusRuntimeException) {
+                if (e.status.code == Status.Code.DEADLINE_EXCEEDED ||
+                    e.status.code == Status.Code.UNAVAILABLE) {
+                    // The cloud may have received the command before the stream
+                    // timed out. Never send it again automatically.
+                    connectionTimedOut = true
+                } else {
+                    return@withContext CommandResult(false, false, safeError(e))
+                }
             }
             if (action == "lock" || action == "unlock") {
-                val after = try {
-                    decodeExterior(unary(channel,
-                        "/services.vehiclestates.exterior.ExteriorService/GetLatestExterior",
-                        vehicleRequest(id)))
-                } catch (_: Exception) { "unknown" }
-                val verified = after == if (action == "lock") "locked" else "unlocked"
-                mutableStatus.value = snapshot.copy(lockState = after, fetchedAt = System.currentTimeMillis())
-                return@withContext CommandResult(true, verified, if (verified)
-                    "Vehicle lock state verified" else
-                    "Polestar acknowledged the command; lock state not yet confirmed")
+                val target = desiredLockState(action) ?: "unknown"
+                var observed = "unknown"
+                // Read status only. Do not repeat a lock/unlock command on timeout.
+                for (attempt in 0 until 2) {
+                    try {
+                        observed = decodeExterior(unary(channel,
+                            "/services.vehiclestates.exterior.ExteriorService/GetLatestExterior",
+                            vehicleRequest(id), 7))
+                    } catch (_: Exception) { observed = "unknown" }
+                    if (observed == target) {
+                        mutableStatus.value = snapshot.copy(
+                            lockState = observed, fetchedAt = System.currentTimeMillis()
+                        )
+                        return@withContext CommandResult(
+                            terminal in setOf(1, 4, 6), true,
+                            "Vehicle is ${target.uppercase()} · confirmed from C3."
+                        )
+                    }
+                    if (attempt == 0) Thread.sleep(1200)
+                }
+                // No trustworthy current lock state: remove the actionable state
+                // until an explicit read-only refresh succeeds.
+                mutableStatus.value = snapshot.copy(lockState = "unknown")
+                return@withContext CommandResult(
+                    terminal in setOf(1, 4, 6), false,
+                    if (connectionTimedOut)
+                        "Polestar response timed out. The command may have reached the car. " +
+                        "Lock state is unverified—refresh before trying again."
+                    else if (terminal == 6)
+                        "Command acknowledged, but the actual lock state is not yet confirmed. Refresh."
+                    else
+                        "Lock change was not confirmed by C3. Refresh vehicle status before retrying."
+                )
             }
-            return@withContext CommandResult(true, false,
-                "Command acknowledged by C3. Physical result not independently confirmed.")
+            if (connectionTimedOut) {
+                return@withContext CommandResult(
+                    terminal in setOf(1, 4), false,
+                    "Polestar response timed out. The action may have reached the car. " +
+                    "Check the vehicle before trying again."
+                )
+            }
+            if (terminal != 6) {
+                return@withContext CommandResult(
+                    terminal in setOf(1, 4), false,
+                    "C3 did not confirm the action (status $terminal). Check the vehicle."
+                )
+            }
+            return@withContext CommandResult(
+                true, false, "Polestar acknowledged the command. " +
+                    "The physical result is not independently confirmed."
+            )
         } finally { connection.shutdownNow() }
     }
 
