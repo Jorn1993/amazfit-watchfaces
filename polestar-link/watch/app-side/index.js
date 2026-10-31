@@ -581,6 +581,43 @@ async function processOauthResult(){
   trace('ERROR',String(e&&e.message||e).slice(0,130));
  }finally{oauthInFlight=false;}
 }
+// Localhost-only Android companion bridge. The APK uses native HTTP/2 C3
+// and preserves binary responses; this Zepp Side Service only sends JSON to
+// the owner's paired Android app on the same phone.
+const BRIDGE='http://127.0.0.1:18764';
+let pairingInFlight=false;
+async function pairNativeCompanion(){
+ const s=store(),code=String(s.getItem('polestar.bridge.pair.request')||'').trim();
+ if(pairingInFlight||!/^[0-9]{6}$/.test(code)){
+  if(code)s.setItem('polestar.bridge.status','Enter the six-digit code from the Android app');
+  return;
+ }
+ pairingInFlight=true;
+ s.removeItem('polestar.bridge.pair.request');
+ s.setItem('polestar.bridge.status','Connecting to Android companion…');
+ try{
+  const response=await http(BRIDGE+'/pair','POST',
+   {'Content-Type':'application/json'},JSON.stringify({code}));
+  const result=json(response);
+  if(response.status!==200||!result||!/^[-_a-zA-Z0-9]{40,100}$/.test(result.token||''))
+   throw Error('Pairing rejected');
+  s.setItem('polestar.bridge.token',result.token);
+  s.setItem('polestar.bridge.status','Android companion paired');
+ }catch(e){s.setItem('polestar.bridge.status','Pairing failed. Open the Android app and retry.');}
+ finally{pairingInFlight=false;}
+}
+async function nativeCompanion(method,path,body){
+ const token=store().getItem('polestar.bridge.token');
+ if(!token)throw Error('Pair the Android companion first');
+ const response=await http(BRIDGE+path,method,
+  {'Authorization':'Bearer '+token,'Accept':'application/json',
+   ...(body===undefined?{}:{'Content-Type':'application/json'})},
+  body===undefined?undefined:JSON.stringify(body));
+ const data=json(response);
+ if(response.status===401)throw Error('Android pairing expired. Pair again.');
+ if(!data||response.status!==200)throw Error('Android companion not reachable or C3 unavailable');
+ return data;
+}
 function receiveStorageChange({key}={}){
  if(key==='polestar.session.clear'){
   for(const k of ['polestar.access','polestar.refresh','polestar.expires.at',
@@ -592,6 +629,7 @@ function receiveStorageChange({key}={}){
    'polestar.vehicle.verify.request',
    'polestar.c3.transport.report','polestar.c3.transport.status',
    'polestar.c3.transport.request',
+   'polestar.bridge.pair.request','polestar.bridge.token','polestar.bridge.status',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
@@ -604,6 +642,8 @@ function receiveStorageChange({key}={}){
   void connectManualVin();
  }else if(key==='polestar.vehicle.verify.request'){
   void verifyVehicleStatus();
+ }else if(key==='polestar.bridge.pair.request'){
+  void pairNativeCompanion();
  }else if(key==='polestar.c3.transport.request'){
   void testNativeC3Formats();
  }else if(key==='polestar.probe.request'){
@@ -624,6 +664,7 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
+  if(store().getItem('polestar.bridge.pair.request'))void pairNativeCompanion();
   if(store().getItem('polestar.c3.transport.request'))
    void testNativeC3Formats();
   if(store().getItem('polestar.vehicle.verify.request'))
@@ -636,6 +677,7 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
+  if(store().getItem('polestar.bridge.pair.request'))void pairNativeCompanion();
   if(store().getItem('polestar.c3.transport.request'))
    void testNativeC3Formats();
   if(store().getItem('polestar.vehicle.verify.request'))
@@ -653,7 +695,41 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.24-c3-native-transport-check',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.25-native-android-companion',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+   }
+   if(req.method==='vehicle.capabilities'&&store().getItem('polestar.bridge.token')){
+    try{
+     const info=await nativeCompanion('GET','/capabilities');
+     res(null,{ok:true,authenticated:info.authenticated===true,
+      vehicle_configured:info.vehicle_configured===true,
+      native_verified:info.native_verified===true,
+      control_transport:info.native_verified===true?'candidate':'unavailable',
+      source:'native_android'});
+    }catch(e){res(null,{ok:true,authenticated:false,
+     vehicle_configured:false,native_verified:false,control_transport:'unavailable',
+     source:'android_offline'});}
+    return;
+   }
+   if(req.method==='vehicle.status'&&store().getItem('polestar.bridge.token')){
+    try{
+     const result=await nativeCompanion('GET','/status');
+     if(result.ok===true&&typeof result.battery_percent==='number'&&
+       typeof result.range_km==='number')res(null,result);
+     else res(null,{ok:false,error:'Android returned no verified vehicle status'});
+    }catch(e){res(null,{ok:false,error:'Unable to connect to Android C3 companion'});}
+    return;
+   }
+   if(req.method==='vehicle.command'&&store().getItem('polestar.bridge.token')){
+    const p=req.params||{};
+    if(p.confirmed!==true){
+     res(null,{ok:false,error:'Confirm the action on your watch first'});return;
+    }
+    try{
+     const action=p.action==='trunk_unlock'?'trunk':p.action;
+     const result=await nativeCompanion('POST','/command',{action,confirmed:true});
+     res(null,result);
+    }catch(e){res(null,{ok:false,error:'Android C3 command unavailable'});}
+    return;
    }
    if(req.method==='vehicle.capabilities'){
     res(null,{ok:true,authenticated:!!store().getItem('polestar.access'),
