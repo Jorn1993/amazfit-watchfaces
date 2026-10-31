@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import * as proto from '../app-side/proto.js';
 import * as webtext from '../app-side/grpc-web-text.js';
 import * as c3Actions from '../app-side/c3-actions.js';
+import * as c3Transport from '../app-side/c3-transport.js';
 
 const vin='YSMABCDE0R0000001';
 const wrap=(name,props={},children=[])=>({name,props,children});
@@ -41,7 +42,7 @@ function launch(startImmediately=true,options={}){
   if(url.includes('/mystar-v2/'))return {status:options.v2Http===401&&headers.Authorization==='simulated-token'&&options.rawTokenWorks?200:options.v2Http||200,body:{data:{getConsumerCarsV2:options.noCars||options.v2Empty?[]:[{vin,modelName:'Polestar 4',modelYear:'2026'}]}}};
   if(url==='https://cnepmob.volvocars.com/')return {status:200,body:{c3:{grpcHost:'c3.mock.example'}}};
   if(url.startsWith('https://c3.mock.example/')){
-   assert.equal(typeof body,'string');
+   assert.ok(typeof body==='string'||body instanceof ArrayBuffer);
    if(headers['Content-Type']==='application/grpc-web-text+proto'){
     if(!options.webTextWorks)return {status:415,headers:{'Content-Type':'text/plain'},body:'unsupported'};
     const payload=proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]));
@@ -54,7 +55,16 @@ function launch(startImmediately=true,options={}){
     const car=block(1,[...block(1,str(vin)),...block(6,str('Polestar 4'))]);
     return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(Uint8Array.from(block(1,car)))};
    }
-   if(url.includes('/GetLatestBattery'))return options.grpcBinaryBlocked?{status:200,headers:{},body:'not binary'}:{status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+   if(url.includes('/GetLatestBattery')){
+    if(options.c3NativeProbe){
+     const typed=body instanceof ArrayBuffer;
+     if(typed&&options.c3NativeProbe==='typedWorks')
+      return {status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+     if(typed)return {status:415,headers:{'Content-Type':'text/plain'},body:'unsupported body'};
+     return {status:200,headers:{'Content-Type':'application/grpc'},body:'\uFFFDgarbled binary'};
+    }
+    return options.grpcBinaryBlocked?{status:200,headers:{},body:'not binary'}:{status:200,headers:{'grpc-status':'0','Content-Type':'application/grpc'},body:proto.grpcFrame(msg(3,[...dbl(2,84.1),...dbl(4,381.6)]))};
+   }
    if(url.includes('/GetLatestExterior'))return {status:200,headers:{'grpc-status':'0'},body:proto.grpcFrame(msg(3,num(2,(options.staleExterior?false:locked)?2:1)))};
    if(['/HonkFlash','/WindowControl','/ClimatizationStart','/ClimatizationStop'].some(s=>url.endsWith(s))){
     commands++;
@@ -70,7 +80,7 @@ function launch(startImmediately=true,options={}){
  }
  const sideCode=readFileSync(new URL('../app-side/index.js',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const settingsCode=readFileSync(new URL('../setting/index.js',import.meta.url),'utf8');
- const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,...webtext,...c3Actions,
+ const common={settings:{settingsStorage:storage},fetch:fetchMock,crypto:{},...proto,...webtext,...c3Actions,...c3Transport,
   authenticatePolestar:async(email,password)=>{
    logins++;
    assert.equal(email,'driver@example.test');
@@ -512,4 +522,49 @@ test('Zepp login shows email and one-shot masked password after closing native i
  assert.equal(storage.getItem('polestar.email'),'driver@example.test');
  assert.equal(storage.getItem('polestar.password'),'');
  assert.equal(storage.getItem('polestar.login.request'),'');
+});
+
+test('C3 direct native probe reports both request encodings without unlocking any controls',async()=>{
+ const {storage,page,getCommands}=launch(true,{c3NativeProbe:'rejected'});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'simulated-token',expires_in:3600
+ }));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ const controls=flatten(page.build({settingsStorage:storage}));
+ const button=controls.find(x=>x.name==='Button'&&x.props.label==='Test native C3 connection');
+ assert.ok(button);
+ button.props.onClick();
+ await eventually(()=>storage.getItem('polestar.c3.transport.status')==='complete');
+ const report=JSON.parse(storage.getItem('polestar.c3.transport.report'));
+ assert.equal(report.tested,true);
+ assert.equal(report.verified,false);
+ assert.equal(report.attempts.length,2);
+ assert.equal(report.attempts[0].mode,'arraybuffer');
+ assert.equal(report.attempts[0].http,415);
+ assert.equal(report.attempts[1].mode,'string');
+ assert.equal(report.attempts[1].utf8_replacement>0,true);
+ assert.equal(getCommands(),0);
+ assert.equal(storage.getItem('vehicle.verified'),'');
+ assert.equal(JSON.stringify(report).includes('simulated-token'),false);
+ assert.equal(JSON.stringify(report).includes(vin),false);
+});
+test('A truly byte-perfect read-only C3 response does not silently enable car controls',async()=>{
+ const {storage,page,getCommands}=launch(true,{c3NativeProbe:'typedWorks'});
+ storage.setItem('polestar.oauth.result.at',String(Date.now()));
+ storage.setItem('polestar.oauth.result',JSON.stringify({
+  access_token:'simulated-token',expires_in:3600
+ }));
+ await eventually(()=>storage.getItem('polestar.login.status').startsWith('READY:'));
+ flatten(page.build({settingsStorage:storage})).find(
+  x=>x.name==='Button'&&x.props.label==='Test native C3 connection').props.onClick();
+ await eventually(()=>storage.getItem('polestar.c3.transport.status')==='complete');
+ const report=JSON.parse(storage.getItem('polestar.c3.transport.report'));
+ assert.equal(report.verified,true);
+ assert.equal(report.outcome,'verified_native_battery');
+ assert.equal(report.supported_mode,'arraybuffer');
+ assert.equal(report.attempts.length,1);
+ assert.equal(report.battery_percent,84);
+ assert.equal(getCommands(),0);
+ assert.equal(storage.getItem('vehicle.verified'),'');
 });
