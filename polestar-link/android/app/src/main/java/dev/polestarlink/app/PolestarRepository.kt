@@ -256,22 +256,6 @@ class PolestarRepository(
         } finally { connection.shutdownNow() }
     }
 
-    companion object {
-        fun chronosEnvelope(vin: String): ByteArray {
-            val timezoneMinutes = java.util.TimeZone.getDefault().getOffset(
-                System.currentTimeMillis()
-            ) / 60_000
-            val tz = packet { it.writeInt32(1, timezoneMinutes) }
-            val id = packet {
-                it.writeString(1, UUID.randomUUID().toString())
-                it.writeString(2, vin)
-                it.writeString(3, "RCS")
-                it.writeByteArray(4, tz)
-            }
-            return packet { it.writeByteArray(1, id) }
-        }
-    }
-
     /** Command results are never marked successful without the terminal C3 status. */
     suspend fun command(action: String): CommandResult = withContext(Dispatchers.IO) {
         val snapshot = mutableStatus.value ?: error("Refresh real vehicle status before controls")
@@ -384,6 +368,19 @@ class PolestarRepository(
     }
 
     companion object {
+        fun chronosEnvelope(vin: String): ByteArray {
+            val timezoneMinutes = java.util.TimeZone.getDefault().getOffset(
+                System.currentTimeMillis()
+            ) / 60_000
+            val tz = packet { it.writeInt32(1, timezoneMinutes) }
+            val id = packet {
+                it.writeString(1, UUID.randomUUID().toString())
+                it.writeString(2, vin)
+                it.writeString(3, "RCS")
+                it.writeByteArray(4, tz)
+            }
+            return packet { it.writeByteArray(1, id) }
+        }
         private fun packet(block: (CodedOutputStream) -> Unit): ByteArray {
             val output = ByteArrayOutputStream()
             val coded = CodedOutputStream.newInstance(output)
