@@ -122,6 +122,40 @@ AppSettingsPage({
   if(details||status)add(Text({paragraph:true,style:{
    fontSize:'13px',color:error?palette.alert:palette.muted
   }},details||status));
+  if(signedIn&&vin){
+   let probe={};
+   try{probe=JSON.parse(s.getItem('polestar.c3.transport.report')||'{}');}catch(e){}
+   const progress=String(s.getItem('polestar.c3.transport.status')||'');
+   add(Text({bold:true,style:{fontSize:'17px',color:palette.ink}},
+    'Direct C3 connection'));
+   add(Text({paragraph:true,style:muted},
+    'Read-only test of Polestar\'s native gRPC interface. No door, climate or other control commands are sent.'));
+   add(Button({label:progress.startsWith('testing')?'Checking C3 transport…':'Test native C3 connection',
+    style:buttonSoft,onClick:()=>{
+     if(String(s.getItem('polestar.c3.transport.status')||'').startsWith('testing'))return;
+     s.removeItem('polestar.c3.transport.report');
+     s.setItem('polestar.c3.transport.status','queued');
+     s.setItem('polestar.c3.transport.request',String(Date.now()));
+    }}));
+   if(progress.startsWith('testing')||progress==='queued')
+    add(Text({paragraph:true,style:muted},'Testing native read-only battery connection…'));
+   if(probe.tested){
+    add(Text({paragraph:true,style:{fontSize:'14px',
+     color:probe.verified?palette.accent:palette.alert}},
+     probe.verified?'Native C3 battery connection verified':
+      'Native C3 connection is not yet usable'));
+    for(const step of probe.attempts||[]){
+     const val=x=>x===undefined||x===null?'—':String(x);
+     add(Text({paragraph:true,style:muted},
+      (step.mode==='arraybuffer'?'Binary body':'String body')+
+      ': HTTP '+val(step.http)+
+      ' · response '+val(step.shape)+
+      ' · replacement chars '+val(step.utf8_replacement)+
+      (step.error?' · '+step.error:'')+
+      (step.battery_payload_valid===false?' · invalid gRPC data':'')));
+    }
+   }
+  }
   if(signedIn&&vin)add(Text({paragraph:true,style:muted},
    'Connection: '+(verified?'verified':'not verified')+
    '  •  No remote command is sent without confirmation.'));
