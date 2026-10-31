@@ -5,6 +5,7 @@
 let loginEmail='';
 let loginPassword='';
 let manualVin='';
+let nativePairCode='';
 AppSettingsPage({
  build(props){
   const s=props.settingsStorage;
@@ -32,7 +33,35 @@ AppSettingsPage({
   add(Text({bold:true,style:{fontSize:'28px',letterSpacing:'3px',
    color:palette.ink}},'POLESTAR'));
   add(Text({bold:true,style:{fontSize:'19px',color:palette.ink}},
-   signedIn?'Polestar 4':'Connect your account'));
+   s.getItem('polestar.bridge.token')?'Android companion paired':'Android companion'));
+  add(Text({paragraph:true,style:muted},
+   'Install Polestar Link on your Android phone. Sign in and configure your car there, then pair your watch.'));
+  if(!s.getItem('polestar.bridge.token')){
+   add(TextInput({label:'Android pairing code',value:nativePairCode,
+    placeholder:'6-digit code from Android app',subStyle:field,onChange:v=>{
+     nativePairCode=String(v||'').replace(/[^0-9]/g,'').slice(0,6);
+     s.setItem('polestar.bridge.ui.changed',String(Date.now()));
+    }}));
+   add(Button({label:'Pair Android app',style:buttonMain,onClick:()=>{
+    if(!/^[0-9]{6}$/.test(nativePairCode)){
+     s.setItem('polestar.bridge.status','Enter your 6-digit Android pairing code');return;
+    }
+    s.setItem('polestar.bridge.status','Waiting for Android companion…');
+    s.setItem('polestar.bridge.pair.request',nativePairCode);
+    nativePairCode='';
+   }}));
+  }else{
+   add(Text({bold:true,style:{fontSize:'14px',color:palette.accent}},
+    'Paired with Android · native C3 available when the phone is online'));
+   add(Button({label:'Forget Android pairing',style:buttonSoft,onClick:()=>{
+    s.removeItem('polestar.bridge.token');
+    s.setItem('polestar.bridge.status','Android pairing removed');
+   }}));
+  }
+  if(s.getItem('polestar.bridge.status'))add(Text({paragraph:true,style:muted},
+    String(s.getItem('polestar.bridge.status')||'')));
+  add(Text({bold:true,style:{fontSize:'19px',color:palette.ink}},
+   signedIn?'Legacy Zepp account':'Legacy Zepp login'));
   if(!signedIn){
    add(Text({paragraph:true,style:muted},
     'Edit each field in Zepp. Your entered details are shown here after closing the editor.'));
