@@ -231,7 +231,10 @@ private fun CompanionScreen(
                     if (!busy) scope.launch {
                         busy = true
                         try {
-                            val result = app.repository.command(action.key)
+                            val result = if (action.key == "charge_start" ||
+                                action.key == "charge_stop") {
+                                app.repository.chargeOverride(action.key == "charge_start")
+                            } else app.repository.command(action.key)
                             message = result.text
                         } catch (e: Exception) {
                             message = "Command outcome could not be verified. Refresh car status before retrying."
@@ -548,6 +551,14 @@ private fun HomeScreen(
             ActionTile(it, status != null && !busy, Modifier.weight(1f)) { onControl(it) }
         }
     }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SmallToggleCard("Charge now", details?.battery?.chargingState, "charging",
+            "charge_stop", "charge_start", Icons.Filled.ElectricCar,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        mainActions.drop(1).forEach {
+            ActionTile(it, status != null && !busy, Modifier.weight(1f)) { onControl(it) }
+        }
+    }
     if (vin == null) SolidButton("ADD YOUR VEHICLE VIN", true, onSettings)
     else OutlinedButton(
         onClick = onRefresh, enabled = !busy, modifier = Modifier.fillMaxWidth(),
@@ -622,8 +633,15 @@ private fun ControlsScreen(
         ActionTile(mainActions.first(), status != null && !busy,
             Modifier.weight(1f)) { onControl(mainActions.first()) }
     }
-    val rest = listOf(mainActions.last()) +
-        extraActions.filter { it.key !in setOf(
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SmallToggleCard("Charge now", details?.battery?.chargingState, "charging",
+            "charge_stop", "charge_start", Icons.Filled.ElectricCar,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        ActionTile(mainActions.last(), status != null && !busy, Modifier.weight(1f)) {
+            onControl(mainActions.last())
+        }
+    }
+    val rest = extraActions.filter { it.key !in setOf(
             "climate_start", "climate_stop", "windows_open", "windows_close"
         ) }
     rest.chunked(2).forEach { pair ->
