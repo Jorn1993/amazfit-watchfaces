@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "name": "1.3.23",
-      "code": 43
+      "name": "1.3.24",
+      "code": 44
     },
     "vender": "Personal prototype",
-    "description": "Polestar branded two-page dashboard with Zepp metric rendering fix",
+    "description": "Direct Polestar C3 native transport verification only",
     "icon": "icon.png"
   },
   "permissions": [
