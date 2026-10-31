@@ -328,7 +328,7 @@ async function testNativeC3Formats(){
     if(response.status===200){
      try{
       const contentType=header(response,'content-type');
-      if(!/^application\\/grpc(?:[+;]|$)/i.test(contentType))
+      if(!String(contentType).toLowerCase().startsWith('application/grpc'))
        throw Error('Unexpected Content-Type');
       const messages=grpcMessages(response.body);
       const result=decodeBattery(messages[messages.length-1]);
