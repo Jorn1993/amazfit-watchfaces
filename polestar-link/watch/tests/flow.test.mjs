@@ -324,7 +324,7 @@ test('Credentials are only submitted on explicit sign-in',async()=>{
  const {storage,page,getLogins,getCommands}=launch();
  const controls=flatten(page.build({settingsStorage:storage}));
  const inputs=controls.filter(x=>x.name==='TextInput');
- inputs[0].props.onChange('driver@example.test');
+ inputs.find(x=>x.props.label==='Polestar email').props.onChange('driver@example.test');
  inputs.find(x=>x.props.label==='Polestar password').props.onChange('test-password');
  assert.equal(getLogins(),0);
  assert.equal(storage.getItem('polestar.login.request'),'');
@@ -344,8 +344,8 @@ test('Failed login does not keep password or mark a car connected',async()=>{
  const {storage,page,getLogins}=launch(true,{loginFailure:true});
  const controls=flatten(page.build({settingsStorage:storage}));
  const inputs=controls.filter(x=>x.name==='TextInput');
- inputs[0].props.onChange('driver@example.test');
- inputs[1].props.onChange('test-password');
+ inputs.find(x=>x.props.label==='Polestar email').props.onChange('driver@example.test');
+ inputs.find(x=>x.props.label==='Polestar password').props.onChange('test-password');
  controls.find(x=>x.name==='Button'&&x.props.label==='Connect to Polestar').props.onClick();
  await eventually(()=>storage.getItem('polestar.login.status').startsWith('ERROR:'));
  assert.equal(getLogins(),1);
