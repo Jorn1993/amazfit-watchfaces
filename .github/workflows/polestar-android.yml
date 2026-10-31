@@ -1,0 +1,75 @@
+name: Polestar Link Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/polestar-link
+    paths:
+      - 'polestar-link/android/**'
+      - '.github/workflows/polestar-android.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: polestar-android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests and compile installable Android APK
+        working-directory: polestar-link/android
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polestar-link-android-debug-apk
+          path: polestar-link/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish direct-install APK in project
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p polestar-link/public
+          cp polestar-link/android/app/build/outputs/apk/debug/app-debug.apk /tmp/polestar-link-android-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin feature/polestar-link
+            stale="$(git diff --name-only "$GITHUB_SHA" origin/feature/polestar-link -- polestar-link/android/ .github/workflows/polestar-android.yml)"
+            if [ -n "$stale" ]; then
+              echo "Source changed after build; skip publishing obsolete APK."
+              exit 0
+            fi
+            git reset --hard origin/feature/polestar-link
+            mkdir -p polestar-link/public
+            cp /tmp/polestar-link-android-debug.apk polestar-link/public/polestar-link-android-v0.1.0-debug.apk
+            git add polestar-link/public/polestar-link-android-v0.1.0-debug.apk
+            if git diff --cached --quiet; then
+              echo "APK already published."
+              exit 0
+            fi
+            git commit -m "build(polestar): publish Android developer APK [skip ci]"
+            if git push origin HEAD:feature/polestar-link; then
+              echo "APK published."
+              exit 0
+            fi
+          done
+          echo "Could not publish APK after three attempts"
+          exit 1
