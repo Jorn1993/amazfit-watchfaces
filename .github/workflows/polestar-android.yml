@@ -70,8 +70,8 @@ jobs:
             fi
             git reset --hard origin/feature/polestar-link
             mkdir -p polestar-link/public
-            cp /tmp/polestar-link-android-debug.apk polestar-link/public/polestar-link-android-v0.2.0-debug.apk
-            git add polestar-link/public/polestar-link-android-v0.2.0-debug.apk
+            cp /tmp/polestar-link-android-debug.apk polestar-link/public/polestar-link-android-v0.3.0-debug.apk
+            git add polestar-link/public/polestar-link-android-v0.3.0-debug.apk
             if git diff --cached --quiet; then
               echo "APK already published."
               exit 0
