@@ -36,6 +36,10 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Window
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.WbSunny
@@ -70,6 +74,8 @@ private val ErrorTone = Color(0xFFEAABA5)
 private val UnlockedAccent = Color(0xFFFFC77D)
 private val UnlockedSurface = Color(0xFF362A21)
 private val LockedSurface = Color(0xFF20302C)
+private val ActiveTile = Color(0xFF365E50)
+private val ActiveForeground = Color(0xFFDDF8E9)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,12 +103,12 @@ class MainActivity : ComponentActivity() {
 private data class ActionItem(val key: String, val name: String, val icon: ImageVector,
     val summary: String)
 private val mainActions = listOf(
-    ActionItem("climate_start", "Climate", Icons.Filled.Thermostat, "Start cabin climate"),
-    ActionItem("trunk", "Trunk", Icons.Filled.DirectionsCar, "Release the trunk")
+    ActionItem("trunk", "Trunk", Icons.Filled.DirectionsCar, "Release the trunk"),
+    ActionItem("flash", "Flash lights", Icons.Filled.FlashOn, "Locate your car")
 )
 private val extraActions = listOf(
+    ActionItem("climate_start", "Start climate", Icons.Filled.Thermostat, "Precondition the cabin"),
     ActionItem("climate_stop", "Stop climate", Icons.Filled.Thermostat, "End preconditioning"),
-    ActionItem("flash", "Flash lights", Icons.Filled.FlashOn, "Locate your car"),
     ActionItem("honk", "Honk", Icons.Filled.Bluetooth, "Sound the horn"),
     ActionItem("honk_flash", "Honk + flash", Icons.Filled.FlashOn, "Horn and lights"),
     ActionItem("windows_open", "Open windows", Icons.Filled.MoreHoriz, "Open all windows"),
@@ -116,17 +122,50 @@ private fun CompanionScreen(
     val scope = rememberCoroutineScope()
     val state by app.repository.status.collectAsState()
     val repoError by app.repository.error.collectAsState()
+    val details by app.repository.details.collectAsState()
     var signedIn by remember { mutableStateOf(app.auth.isSignedIn()) }
-    val pager = rememberPagerState(initialPage = 0, pageCount = { 3 })
+    val pager = rememberPagerState(initialPage = 0, pageCount = { 4 })
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var url by remember { mutableStateOf<String?>(null) }
     var confirming by remember { mutableStateOf<ActionItem?>(null) }
     var vinInput by remember { mutableStateOf(app.repository.vin.orEmpty()) }
     var pairingCode by remember { mutableStateOf<String?>(null) }
+    var discovering by remember { mutableStateOf(false) }
+    var discoveredCars by remember { mutableStateOf<List<String>>(emptyList()) }
+    var vehicleLookupMessage by remember { mutableStateOf<String?>(null) }
+    var checkingVehicle by remember { mutableStateOf(false) }
+
+    fun findCars() {
+        if (discovering || !signedIn) return
+        scope.launch {
+            discovering = true
+            vehicleLookupMessage = null
+            try {
+                discoveredCars = app.repository.findMyCars()
+                if (discoveredCars.size == 1) {
+                    app.repository.setVin(discoveredCars.single())
+                    vinInput = discoveredCars.single()
+                    checkingVehicle = true
+                    try {
+                        app.repository.refresh()
+                        vehicleLookupMessage = "Polestar 4 verified through C3."
+                    } catch (e: Exception) {
+                        vehicleLookupMessage = "Vehicle found, but C3 verification was not successful."
+                    } finally { checkingVehicle = false }
+                } else if (discoveredCars.isEmpty()) {
+                    vehicleLookupMessage = "No cars are listed for this Polestar ID. Guest and secondary accounts can use the VIN from the official Polestar app."
+                } else {
+                    vehicleLookupMessage = "Choose one of the cars linked to your Polestar ID."
+                }
+            } catch (e: Exception) {
+                vehicleLookupMessage = "Automatic vehicle discovery unavailable. You can enter the VIN manually."
+            } finally { discovering = false }
+        }
+    }
 
     fun navigate(page: Int) {
-        scope.launch { pager.animateScrollToPage(page.coerceIn(0, 2)) }
+        scope.launch { pager.animateScrollToPage(page.coerceIn(0, 3)) }
     }
     fun refresh() {
         if (busy || !signedIn || app.repository.vin == null) return
@@ -135,6 +174,14 @@ private fun CompanionScreen(
             try { app.repository.refresh(); message = null }
             catch (e: Exception) { message = e.message }
             finally { busy = false }
+        }
+    }
+    LaunchedEffect(signedIn) {
+        if (signedIn && app.repository.vin == null) findCars()
+    }
+    LaunchedEffect(pager.currentPage, signedIn, state?.fetchedAt) {
+        if (signedIn && pager.currentPage == 1 && state != null && details?.odometerKm == null) {
+            try { app.repository.refreshDetails() } catch (_: Exception) { }
         }
     }
     LaunchedEffect(signedIn, app.repository.vin) {
@@ -196,8 +243,9 @@ private fun CompanionScreen(
                 NavigationBar(containerColor = Night, tonalElevation = 0.dp) {
                     listOf(
                         Triple("Home", Icons.Filled.Home, 0),
-                        Triple("Controls", Icons.Filled.Key, 1),
-                        Triple("Settings", Icons.Filled.Settings, 2)
+                        Triple("Status", Icons.Filled.Info, 1),
+                        Triple("Controls", Icons.Filled.Key, 2),
+                        Triple("Settings", Icons.Filled.Settings, 3)
                     ).forEach { (name, icon, index) ->
                         NavigationBarItem(
                             selected = pager.currentPage == index,
@@ -235,7 +283,37 @@ private fun CompanionScreen(
                     color = Mint, trackColor = SurfaceLight
                 )
             }
-            if (signedIn) {
+            if (signedIn && app.repository.vin == null) {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Spacer(Modifier.height(24.dp))
+                    CarSetupScreen(
+                        busy = discovering || checkingVehicle || busy,
+                        cars = discoveredCars,
+                        message = vehicleLookupMessage,
+                        vinInput = vinInput,
+                        onVinChange = { vinInput = it },
+                        onFind = { findCars() },
+                        onChoose = { chosen ->
+                            scope.launch {
+                                checkingVehicle = true
+                                try {
+                                    app.repository.setVin(chosen)
+                                    vinInput = chosen
+                                    app.repository.refresh()
+                                    message = "Polestar 4 verified through C3."
+                                } catch (e: Exception) {
+                                    message = "Vehicle saved, but C3 verification failed. Try refreshing."
+                                } finally { checkingVehicle = false }
+                            }
+                        }
+                    )
+                    if (!message.isNullOrBlank()) NoticeCard(message!!)
+                }
+            } else if (signedIn) {
                 // Pager consumes horizontal swipes; each page scrolls vertically.
                 // Bottom navigation and swipe state always remain synchronized.
                 HorizontalPager(
@@ -252,19 +330,34 @@ private fun CompanionScreen(
                         Spacer(Modifier.height(10.dp))
                         when (page) {
                             0 -> HomeScreen(
-                                state, app.repository.vin, busy,
+                                state, details, app.repository.vin, busy,
                                 onRefresh = { refresh() },
                                 onControl = { if (!busy) confirming = it },
                                 onSettings = { navigate(2) }
                             )
-                            1 -> ControlsScreen(state, busy,
+                            1 -> DetailedStatusScreen(
+                                state, details, busy,
+                                onRefresh = {
+                                    scope.launch {
+                                        busy = true
+                                        try {
+                                            app.repository.refresh()
+                                            app.repository.refreshDetails()
+                                            message = null
+                                        } catch (e: Exception) {
+                                            message = "C3 detail refresh incomplete."
+                                        } finally { busy = false }
+                                    }
+                                }
+                            )
+                            2 -> ControlsScreen(state, details, busy,
                                 onControl = { if (!busy) confirming = it })
-                            2 -> SettingsScreen(
+                            3 -> SettingsScreen(
                                 vinInput = vinInput, onVinChange = { vinInput = it },
                                 onSaveVin = {
                                     try {
                                         app.repository.setVin(vinInput)
-                                        message = "Vehicle configured."
+                                        message = "VIN saved. Checking live C3 data…"
                                         refresh()
                                     } catch (e: Exception) { message = e.message }
                                 },
@@ -369,42 +462,24 @@ private fun IntroScreen(busy: Boolean, onLogin: () -> Unit) {
 
 @Composable
 private fun CarArtwork() {
-    Box(Modifier.fillMaxWidth().height(180.dp)
-        .clip(RoundedCornerShape(26.dp))
-        .background(Brush.linearGradient(listOf(Color(0xFF252B2B), Night))),
-        contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxWidth(.89f).height(135.dp)) {
-            val width = size.width
-            val height = size.height
-            val car = Path().apply {
-                moveTo(width * .07f, height * .66f)
-                cubicTo(width * .13f, height * .49f, width * .24f, height * .48f, width * .32f, height * .42f)
-                cubicTo(width * .39f, height * .23f, width * .59f, height * .20f, width * .71f, height * .38f)
-                cubicTo(width * .81f, height * .44f, width * .87f, height * .49f, width * .94f, height * .60f)
-                lineTo(width * .96f, height * .76f)
-                lineTo(width * .06f, height * .76f)
-                close()
-            }
-            drawPath(car, color = Color(0xFFCAD3D0), style = Stroke(width = 2.4.dp.toPx()))
-            drawLine(Color(0xFFCAD3D0), Offset(width * .13f, height * .65f),
-                Offset(width * .9f, height * .65f), strokeWidth = 1.dp.toPx())
-            drawCircle(Color(0xFF0B0D0E), radius = height * .13f,
-                center = Offset(width * .25f, height * .76f))
-            drawCircle(Color(0xFFA9B5B0), radius = height * .13f,
-                center = Offset(width * .25f, height * .76f),
-                style = Stroke(width = 2.2.dp.toPx()))
-            drawCircle(Color(0xFF0B0D0E), radius = height * .13f,
-                center = Offset(width * .77f, height * .76f))
-            drawCircle(Color(0xFFA9B5B0), radius = height * .13f,
-                center = Offset(width * .77f, height * .76f),
-                style = Stroke(width = 2.2.dp.toPx()))
-        }
+    // Real model photograph; no third-party relay and no personal VIN sent.
+    Box(
+        Modifier.fillMaxWidth().height(194.dp)
+            .clip(RoundedCornerShape(25.dp)).background(SurfaceLight),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = "https://tvk.nl/app/uploads/sites/4/2025/10/Polestar-230908-3535_MY26_AeroWheel_v02.jpg",
+            contentDescription = "Polestar 4 exterior side profile",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
 @Composable
 private fun HomeScreen(
-    status: VehicleStatus?, vin: String?, busy: Boolean,
+    status: VehicleStatus?, details: VehicleDetails?, vin: String?, busy: Boolean,
     onRefresh: () -> Unit, onControl: (ActionItem) -> Unit,
     onSettings: () -> Unit
 ) {
@@ -447,11 +522,20 @@ private fun HomeScreen(
         InfoTile("C3 STATUS", if (status != null) "CONNECTED" else "OFFLINE",
             Icons.Filled.Check, Modifier.weight(1f))
     }
-    SectionHeader("Vehicle security", if (status == null) "STATUS UNAVAILABLE" else "LIVE C3")
-    LockControlCard(status, !busy, onControl)
     SectionHeader("Quick actions", if (status == null) "REQUIRES LIVE C3" else "READY")
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        mainActions.forEach {
+        SmallToggleCard("Lock", status?.lockState, "unlocked",
+            "lock", "unlock", Icons.Filled.Lock,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        SmallToggleCard("Windows", details?.exterior?.windowState, "open",
+            "windows_close", "windows_open", Icons.Filled.Window,
+            status != null && !busy, Modifier.weight(1f), onControl)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SmallToggleCard("Climate", details?.climate?.state, "active",
+            "climate_stop", "climate_start", Icons.Filled.Thermostat,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        mainActions.take(1).forEach {
             ActionTile(it, status != null && !busy, Modifier.weight(1f)) { onControl(it) }
         }
     }
@@ -508,14 +592,32 @@ private fun ActionTile(
 
 @Composable
 private fun ControlsScreen(
-    status: VehicleStatus?, busy: Boolean, onControl: (ActionItem) -> Unit
+    status: VehicleStatus?, details: VehicleDetails?, busy: Boolean,
+    onControl: (ActionItem) -> Unit
 ) {
     SectionHeader("Vehicle controls", if (status != null) "C3 LIVE" else "OFFLINE")
-    Text("Tap an action to confirm. A timed-out command may still reach the vehicle.",
-        color = Muted, fontSize = 14.sp, lineHeight = 21.sp)
-    LockControlCard(status, !busy, onControl)
-    val all = mainActions + extraActions
-    all.chunked(2).forEach { pair ->
+    Text("Active states are highlighted. Confirm each remote action before sending.",
+        color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SmallToggleCard("Lock", status?.lockState, "unlocked",
+            "lock", "unlock", Icons.Filled.Lock,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        SmallToggleCard("Windows", details?.exterior?.windowState, "open",
+            "windows_close", "windows_open", Icons.Filled.Window,
+            status != null && !busy, Modifier.weight(1f), onControl)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SmallToggleCard("Climate", details?.climate?.state, "active",
+            "climate_stop", "climate_start", Icons.Filled.Thermostat,
+            status != null && !busy, Modifier.weight(1f), onControl)
+        ActionTile(mainActions.first(), status != null && !busy,
+            Modifier.weight(1f)) { onControl(mainActions.first()) }
+    }
+    val rest = listOf(mainActions.last()) +
+        extraActions.filter { it.key !in setOf(
+            "climate_start", "climate_stop", "windows_open", "windows_close"
+        ) }
+    rest.chunked(2).forEach { pair ->
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             pair.forEach { action ->
                 ActionTile(action, status != null && !busy, Modifier.weight(1f)) {
@@ -530,71 +632,135 @@ private fun ControlsScreen(
 }
 
 @Composable
-private fun LockControlCard(
-    status: VehicleStatus?, enabled: Boolean, onControl: (ActionItem) -> Unit
+private fun SmallToggleCard(
+    title: String, state: String?, activeState: String,
+    turnOff: String, turnOn: String,
+    icon: ImageVector, available: Boolean, modifier: Modifier = Modifier,
+    onControl: (ActionItem) -> Unit
 ) {
-    val model = lockControlState(status?.lockState, status != null)
-    val tint = when {
-        model.unlocked -> UnlockedAccent
-        model.locked -> Mint
-        else -> Muted
-    }
-    val surface = when {
-        model.unlocked -> UnlockedSurface
-        model.locked -> LockedSurface
-        else -> Surface
-    }
-    val shape = RoundedCornerShape(23.dp)
+    val known = state != null && state != "unknown"
+    val active = known && state == activeState
+    val action = if (active) turnOff else turnOn
+    val color = if (active) ActiveTile else SurfaceLight
+    val foreground = if (active) ActiveForeground else Ivory
     Column(
-        modifier = Modifier.fillMaxWidth().clip(shape)
-            .background(surface).border(1.dp, tint.copy(alpha = .55f), shape)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier.clip(RoundedCornerShape(19.dp)).background(color)
+            .clickable(enabled = available && known) {
+                onControl(ActionItem(action, title, icon, "Confirm $action"))
+            }.padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (model.unlocked) Icons.Filled.LockOpen else Icons.Filled.Lock,
-                contentDescription = model.status, tint = tint,
-                modifier = Modifier.size(35.dp)
-            )
-            Spacer(Modifier.width(17.dp))
-            Column(Modifier.weight(1f)) {
-                Text("VEHICLE SECURITY", color = Muted,
-                    fontSize = 10.sp, letterSpacing = 1.5.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(model.status, color = tint, fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold)
-            }
-            Box(Modifier.size(9.dp).background(tint, CircleShape))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, modifier = Modifier.size(24.dp),
+                tint = if (known) foreground else Muted)
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.size(9.dp).background(
+                if (active) ActiveForeground else Muted.copy(alpha = .4f), CircleShape))
         }
-        Text(
-            when {
-                model.unlocked -> "Vehicle is unlocked · tap below to secure it"
-                model.locked -> "Vehicle is locked · tap below to unlock"
-                else -> "Lock state is unknown. Refresh the vehicle first."
-            },
-            fontSize = 12.sp, lineHeight = 18.sp, color = Muted
-        )
-        Button(
-            onClick = {
-                val action = model.action ?: return@Button
-                onControl(ActionItem(
-                    action,
-                    if (action == "lock") "Lock" else "Unlock",
-                    if (action == "lock") Icons.Filled.Lock else Icons.Filled.LockOpen,
-                    "Confirm vehicle lock change"
-                ))
-            },
-            enabled = enabled && model.action != null,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(13.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = tint, contentColor = Night,
-                disabledContainerColor = SurfaceLight, disabledContentColor = Muted
+        Column {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                color = if (known) foreground else Muted)
+            Text(
+                if (known) state.replaceFirstChar { it.uppercase() } else "Status unavailable",
+                fontSize = 11.sp, color = if (active) ActiveForeground else Muted,
+                lineHeight = 16.sp
             )
-        ) {
-            Text(model.actionLabel, fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun CarSetupScreen(
+    busy: Boolean, cars: List<String>, message: String?,
+    vinInput: String, onVinChange: (String) -> Unit,
+    onFind: () -> Unit, onChoose: (String) -> Unit
+) {
+    SectionHeader("Connect your Polestar 4")
+    Text("Your account is signed in. First we'll look for vehicles linked to it.",
+        color = Muted, fontSize = 14.sp, lineHeight = 22.sp)
+    SolidButton(if (busy) "CHECKING POLESTAR…" else "FIND MY CAR", !busy, onFind)
+    if (!message.isNullOrBlank()) NoticeCard(message)
+    cars.forEach { car ->
+        OutlinedButton(onClick = { onChoose(car) }, enabled = !busy,
+            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Text("POLESTAR 4 · VIN ending ${car.takeLast(4)}")
+        }
+    }
+    SectionHeader("Guest or secondary driver?")
+    Text(
+        "Some Polestar accounts can access a car but are not listed as its owner. " +
+        "If automatic discovery doesn't find it, enter the 17-character VIN from " +
+        "your Polestar app or vehicle documents. We'll verify it against live C3 data.",
+        color = Muted, fontSize = 13.sp, lineHeight = 20.sp
+    )
+    OutlinedTextField(
+        value = vinInput, onValueChange = onVinChange,
+        label = { Text("Vehicle VIN") }, singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        supportingText = { Text("No VIN is sent to anyone except Polestar's own services.") }
+    )
+    SolidButton("VERIFY THIS VEHICLE", !busy &&
+        Regex("^[A-HJ-NPR-Z0-9]{17}$").matches(vinInput.trim().uppercase())
+    ) { onChoose(vinInput.trim().uppercase()) }
+}
+
+@Composable
+private fun DetailedStatusScreen(
+    status: VehicleStatus?, details: VehicleDetails?, busy: Boolean,
+    onRefresh: () -> Unit
+) {
+    SectionHeader("Vehicle status", if (status == null) "OFFLINE" else "C3 LIVE")
+    Text("Read-only data reported by Polestar. Unknown values are not assumed to be closed or inactive.",
+        color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+    SolidButton(if (busy) "REFRESHING…" else "REFRESH ALL DATA", !busy, onRefresh)
+    DetailSection("Battery & charging", listOf(
+        "Charge" to status?.battery?.let { "$it %" },
+        "Estimated range" to status?.rangeKm?.let { "$it km" },
+        "Charging state" to details?.battery?.chargingState,
+        "Cable" to details?.battery?.chargerConnection,
+        "Charging type" to details?.battery?.chargingType,
+        "Power" to details?.battery?.powerWatts?.let { "$it W" },
+        "Current" to details?.battery?.currentAmps?.let { "$it A" },
+        "Voltage" to details?.battery?.voltageVolts?.let { "$it V" },
+        "Time to full" to details?.battery?.timeToFullMinutes?.let { "$it minutes" },
+        "Average consumption" to details?.battery?.averageConsumption?.let { "$it" }
+    ))
+    val e = details?.exterior
+    DetailSection("Doors & security", listOf(
+        "Central lock" to status?.lockState,
+        "Front left door" to e?.frontLeftDoor,
+        "Front right door" to e?.frontRightDoor,
+        "Rear left door" to e?.rearLeftDoor,
+        "Rear right door" to e?.rearRightDoor,
+        "Hood" to e?.hood, "Trunk" to e?.trunk
+    ))
+    DetailSection("Windows & exterior", listOf(
+        "Front left window" to e?.frontLeftWindow,
+        "Front right window" to e?.frontRightWindow,
+        "Rear left window" to e?.rearLeftWindow,
+        "Rear right window" to e?.rearRightWindow,
+        "Sunroof" to e?.sunroof, "Charge flap" to e?.chargeFlap
+    ))
+    DetailSection("Cabin & driving", listOf(
+        "Climate" to details?.climate?.state,
+        "Climate remaining" to details?.climate?.minutesRemaining?.let { "$it minutes" },
+        "Odometer" to details?.odometerKm?.let { "%.1f km".format(it) }
+    ))
+}
+
+@Composable
+private fun DetailSection(title: String, entries: List<Pair<String, String?>>) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+        .background(Surface).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Text(title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = Ivory)
+        entries.forEach { (key, value) ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(key, Modifier.weight(1f), color = Muted, fontSize = 13.sp)
+                Text(value?.takeUnless { it.isBlank() || it == "unknown" } ?: "—",
+                    color = Ivory, fontSize = 13.sp, textAlign = TextAlign.End)
+            }
+            HorizontalDivider(color = SurfaceLight)
         }
     }
 }
