@@ -32,6 +32,17 @@ function launch(startImmediately=true,options={}){
  };
  let commands=0,locked=false,side,page,logins=0;
  async function fetchMock({url,body,headers={}}){
+  if(url.startsWith('http://127.0.0.1:18764/')){
+   if(url.endsWith('/pair'))return {status:200,body:{token:'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123'}};
+   if(url.endsWith('/capabilities'))return {status:200,body:{ok:true,authenticated:true,
+    vehicle_configured:true,native_verified:true}};
+   if(url.endsWith('/status'))return {status:200,body:{ok:true,battery_percent:79,
+    range_km:363,charging:false,lock_state:'locked'}};
+   if(url.endsWith('/command')){
+    commands++;
+    return {status:200,body:{ok:true,verified:true,command:'Lock'}};
+   }
+  }
   if(url==='https://httpbin.org/cookies')
    return {status:200,body:{cookies:{zepp_probe_only:'harmless'}}};
   if(url.endsWith('/.well-known/openid-configuration'))
@@ -120,10 +131,11 @@ test('Personal login renders an email and a visually masked password field',()=>
  const {storage,page}=launch();
  const components=flatten(page.build({settingsStorage:storage}));
  const inputs=components.filter(x=>x.name==='TextInput');
- assert.equal(inputs.length,2);
- assert.equal(inputs[0].props.label,'Polestar email');
- assert.equal(inputs[1].props.label,'Polestar password');
- assert.equal(inputs[1].props.subStyle.WebkitTextSecurity,'disc');
+ assert.equal(inputs.length,3);
+ assert.equal(inputs[0].props.label,'Android pairing code');
+ assert.equal(inputs[1].props.label,'Polestar email');
+ assert.equal(inputs[2].props.label,'Polestar password');
+ assert.equal(inputs[2].props.subStyle.WebkitTextSecurity,'disc');
  assert.equal(components.some(x=>x.name==='Auth'),false);
 });
 
@@ -222,7 +234,7 @@ test('Diagnostic network RPCs remain available without extra Settings buttons',a
  const {side,storage,page}=launch();
  const buttons=flatten(page.build({settingsStorage:storage}))
   .filter(x=>x.name==='Button').map(x=>x.props.label);
- assert.deepEqual(buttons,['Connect to Polestar']);
+ assert.deepEqual(buttons,['Pair Android app','Connect to Polestar']);
  const auth=await ask(side,'auth.preflight');
  assert.equal(auth.ok,true);
  const grpc=await ask(side,'grpc.preflight');
@@ -301,8 +313,8 @@ test('MyStar fallback errors show safe status without leaking vehicle details',a
 test('Compact Settings shows exactly one primary login button and no dynamic diagnostics toggle',async()=>{
  const {storage,side,page,getCommands}=launch();
  const ui=flatten(page.build({settingsStorage:storage}));
- assert.deepEqual(ui.filter(x=>x.name==='Button').map(x=>x.props.label),['Connect to Polestar']);
- assert.equal(ui.filter(x=>x.name==='TextInput').length,2);
+ assert.deepEqual(ui.filter(x=>x.name==='Button').map(x=>x.props.label),['Pair Android app','Connect to Polestar']);
+ assert.equal(ui.filter(x=>x.name==='TextInput').length,3);
  const response=await ask(side,'login.transport.preflight');
  assert.equal(response.cookie_header_forwarded,true);
  assert.equal(getCommands(),0);
@@ -313,7 +325,7 @@ test('Credentials are only submitted on explicit sign-in',async()=>{
  const controls=flatten(page.build({settingsStorage:storage}));
  const inputs=controls.filter(x=>x.name==='TextInput');
  inputs[0].props.onChange('driver@example.test');
- inputs[1].props.onChange('test-password');
+ inputs.find(x=>x.props.label==='Polestar password').props.onChange('test-password');
  assert.equal(getLogins(),0);
  assert.equal(storage.getItem('polestar.login.request'),'');
  assert.equal(getCommands(),0);
@@ -567,4 +579,27 @@ test('A truly byte-perfect read-only C3 response does not silently enable car co
  assert.equal(report.battery_percent,84);
  assert.equal(getCommands(),0);
  assert.equal(storage.getItem('vehicle.verified'),'');
+});
+
+test('Native Android companion pairing and authenticated C3 watch routing',async()=>{
+ const {storage,side,page,getCommands}=launch();
+ const ui=flatten(page.build({settingsStorage:storage}));
+ ui.find(x=>x.name==='TextInput'&&x.props.label==='Android pairing code')
+  .props.onChange('123456');
+ ui.find(x=>x.name==='Button'&&x.props.label==='Pair Android app').props.onClick();
+ await eventually(()=>storage.getItem('polestar.bridge.token')!=='');
+ assert.equal(storage.getItem('polestar.bridge.status'),'Android companion paired');
+ const cap=await ask(side,'vehicle.capabilities');
+ assert.equal(cap.native_verified,true);
+ assert.equal(cap.source,'native_android');
+ const data=await ask(side,'vehicle.status');
+ assert.equal(data.ok,true);
+ assert.equal(data.battery_percent,79);
+ let denied=await ask(side,'vehicle.command',{action:'unlock'});
+ assert.equal(denied.ok,false);
+ assert.equal(getCommands(),0);
+ let allowed=await ask(side,'vehicle.command',{action:'lock',confirmed:true});
+ assert.equal(allowed.ok,true);
+ assert.equal(getCommands(),1);
+ assert.equal(storage.getItem('polestar.access'),'');
 });
