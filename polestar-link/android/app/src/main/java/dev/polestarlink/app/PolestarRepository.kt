@@ -42,6 +42,8 @@ class PolestarRepository(
     private val secrets: SecretStore
 ) {
     private val http = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build()
+    private val mutableDetails = MutableStateFlow<VehicleDetails?>(null)
+    val details: StateFlow<VehicleDetails?> = mutableDetails
     private val mutableStatus = MutableStateFlow<VehicleStatus?>(null)
     private val mutableError = MutableStateFlow<String?>(null)
     val status: StateFlow<VehicleStatus?> = mutableStatus
@@ -55,9 +57,11 @@ class PolestarRepository(
         }
         secrets.put("vin", clean)
         mutableStatus.value = null
+        mutableDetails.value = null
         mutableError.value = null
     }
     fun clear() {
+        mutableDetails.value = null
         mutableStatus.value = null
         mutableError.value = null
         auth.signOut()
@@ -109,22 +113,26 @@ class PolestarRepository(
             val host = discover(token)
             val (connection, channel) = connected(host, token, vin)
             try {
-                val battery = decodeBattery(unary(channel,
+                val batteryResponse = unary(channel,
                     "/services.vehiclestates.battery.BatteryService/GetLatestBattery",
-                    vehicleRequest(vin)))
-                // Exterior is independent: never invent a lock state if unavailable.
+                    vehicleRequest(vin))
+                val battery = decodeBattery(batteryResponse)
                 val exterior = try {
-                    decodeExterior(unary(channel,
+                    parseC3Exterior(unary(channel,
                         "/services.vehiclestates.exterior.ExteriorService/GetLatestExterior",
                         vehicleRequest(vin)))
-                } catch (_: Exception) { "unknown" }
-                val state = VehicleStatus(battery.first, battery.second, battery.third, exterior)
+                } catch (_: Exception) { ExteriorDetails() }
+                val state = VehicleStatus(battery.first, battery.second, battery.third, exterior.lockState)
+                mutableDetails.value = VehicleDetails(
+                    exterior = exterior, battery = parseC3Battery(batteryResponse)
+                )
                 mutableStatus.value = state
                 mutableError.value = null
                 state
             } finally { connection.shutdownNow() }
         } catch (e: Exception) {
             mutableStatus.value = null
+            mutableDetails.value = null
             mutableError.value = safeError(e)
             throw IllegalStateException(safeError(e))
         }
@@ -139,6 +147,85 @@ class PolestarRepository(
             msg.contains("DEADLINE_EXCEEDED", true) -> "Polestar cloud did not respond."
             msg.contains("VIN", true) -> "Please configure your vehicle VIN."
             else -> "Unable to read live C3 data. Check your connection."
+        }
+    }
+
+    /** Optional extra C3 status reads do not block the basic dashboard. */
+    suspend fun refreshDetails(): VehicleDetails = withContext(Dispatchers.IO) {
+        val id = vin ?: error("Set your vehicle VIN first")
+        val token = auth.validToken()
+        val host = discover(token)
+        val (connection, channel) = connected(host, token, id)
+        val previous = mutableDetails.value ?: VehicleDetails()
+        try {
+            val exterior = try {
+                parseC3Exterior(unary(channel,
+                    "/services.vehiclestates.exterior.ExteriorService/GetLatestExterior",
+                    vehicleRequest(id), 8))
+            } catch (_: Exception) { previous.exterior }
+            val climate = try {
+                parseC3Climate(unary(channel,
+                    "/services.vehiclestates.parkingclimatization.ParkingClimatizationService/GetLatestParkingClimatization",
+                    vehicleRequest(id), 6))
+            } catch (_: Exception) { ClimateDetails() }
+            val odometer = try {
+                val stream = ClientCalls.blockingServerStreamingCall(
+                    channel, method(
+                        "/services.vehiclestates.odometer.OdometerService/GetOdometer", true),
+                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
+                    packet { it.writeString(2, id) }
+                )
+                if (stream.hasNext()) parseC3Odometer(stream.next()) else null
+            } catch (_: Exception) { null }
+            val result = previous.copy(
+                exterior = exterior, climate = climate, odometerKm = odometer,
+                fetchedAt = System.currentTimeMillis()
+            )
+            mutableDetails.value = result
+            mutableStatus.value?.let {
+                mutableStatus.value = it.copy(lockState = exterior.lockState)
+            }
+            result
+        } finally { connection.shutdownNow() }
+    }
+
+    /** Mobile GraphQL vehicle discovery, with guest-mode manual VIN fallback. */
+    suspend fun findMyCars(): List<String> = withContext(Dispatchers.IO) {
+        val token = auth.validToken()
+        val query = """query GetVDMSCars {
+            vdms { getVehiclesInformation {
+                vin internalVehicleIdentifier registrationNo modelYear
+                content { model { name } }
+            } }
+        }"""
+        val body = JSONObject().put("operationName", "GetVDMSCars")
+            .put("variables", JSONObject()).put("query", query)
+            .put("extensions", JSONObject().put("clientLibrary",
+                JSONObject().put("name", "apollo-kotlin").put("version", "4.4.1")))
+        val request = Request.Builder().url(
+                "https://pc-api.polestar.com/eu-north-1/app-backend/api/graphql"
+            )
+            .header("X-PolestarId-Authorization", "Bearer $token")
+            .header("X-Polestar-Force-Update-Version", "5.11.0")
+            .header("X-Polestar-Locale", "SE")
+            .header("X-APOLLO-OPERATION-NAME", "GetVDMSCars")
+            .header("X-APOLLO-REQUEST-UUID", UUID.randomUUID().toString())
+            .header("User-Agent", "PolestarApp/5.11.0b1111 Android/14")
+            .header("Accept", "application/json")
+            .post(okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse("application/json"), body.toString()))
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext emptyList()
+            val root = JSONObject(response.body?.string().orEmpty())
+            val entries = root.optJSONObject("data")?.optJSONObject("vdms")
+                ?.optJSONArray("getVehiclesInformation") ?: return@withContext emptyList()
+            val cars = mutableListOf<String>()
+            for (i in 0 until entries.length()) {
+                val candidate = entries.optJSONObject(i)?.optString("vin").orEmpty().uppercase()
+                if (Regex("^[A-HJ-NPR-Z0-9]{17}$").matches(candidate)) cars.add(candidate)
+            }
+            cars.distinct()
         }
     }
 
@@ -198,14 +285,17 @@ class PolestarRepository(
                 // Read status only. Do not repeat a lock/unlock command on timeout.
                 for (attempt in 0 until 2) {
                     try {
-                        observed = decodeExterior(unary(channel,
+                        observed = parseC3Exterior(unary(channel,
                             "/services.vehiclestates.exterior.ExteriorService/GetLatestExterior",
-                            vehicleRequest(id), 7))
+                            vehicleRequest(id), 7)).lockState
                     } catch (_: Exception) { observed = "unknown" }
                     if (observed == target) {
                         mutableStatus.value = snapshot.copy(
                             lockState = observed, fetchedAt = System.currentTimeMillis()
                         )
+                        mutableDetails.value = mutableDetails.value?.let {
+                            it.copy(exterior = it.exterior.copy(lockState = observed))
+                        }
                         return@withContext CommandResult(
                             terminal in setOf(1, 4, 6), true,
                             "Vehicle is ${target.uppercase()} · confirmed from C3."
@@ -216,6 +306,9 @@ class PolestarRepository(
                 // No trustworthy current lock state: remove the actionable state
                 // until an explicit read-only refresh succeeds.
                 mutableStatus.value = snapshot.copy(lockState = "unknown")
+                mutableDetails.value = mutableDetails.value?.let {
+                    it.copy(exterior = it.exterior.copy(lockState = "unknown"))
+                }
                 return@withContext CommandResult(
                     terminal in setOf(1, 4, 6), false,
                     if (connectionTimedOut)
