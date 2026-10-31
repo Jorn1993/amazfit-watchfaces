@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.PolestarLink" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#0B0C0D</item>
+        <item name="android:navigationBarColor">#0B0C0D</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+</resources>
