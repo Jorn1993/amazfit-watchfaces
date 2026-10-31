@@ -42,14 +42,16 @@ class SecretStore(context: Context) {
         )
         return gen.generateKey()
     }
-    fun get(key: String): String? = try {
-        val stored = prefs.getString(key, null) ?: return null
-        val bytes = Base64.decode(stored, Base64.NO_WRAP)
-        val iv = bytes.copyOfRange(0, 12)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-        String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
-    } catch (_: Exception) { null }
+    fun get(key: String): String? {
+        return try {
+            val stored = prefs.getString(key, null) ?: return null
+            val bytes = Base64.decode(stored, Base64.NO_WRAP)
+            val iv = bytes.copyOfRange(0, 12)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
+        } catch (_: Exception) { null }
+    }
 
     fun put(key: String, value: String?) {
         if (value == null) { prefs.edit().remove(key).apply(); return }
