@@ -18,6 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -212,8 +214,7 @@ class PolestarRepository(
             .header("X-APOLLO-REQUEST-UUID", UUID.randomUUID().toString())
             .header("User-Agent", "PolestarApp/5.11.0b1111 Android/14")
             .header("Accept", "application/json")
-            .post(okhttp3.RequestBody.create(
-                okhttp3.MediaType.parse("application/json"), body.toString()))
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return@withContext emptyList()
