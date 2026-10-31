@@ -1,6 +1,7 @@
 import { BaseSideService } from '@zeppos/zml/base-side';
 import { authenticatePolestar } from './oidc.js';
 import { encodeC3Action } from './c3-actions.js';
+import { summarizeC3Response, summarizeC3Error } from './c3-transport.js';
 import { toBase64, grpcWebMessages } from './grpc-web-text.js';
 import { requestFor, grpcFrame, grpcMessages, decodeBattery, decodeExterior, decodeInvocation, decodeMyCars } from './proto.js';
 const store=()=>settings.settingsStorage;
@@ -292,6 +293,72 @@ async function grpc(method,vin,options={}){
  const messages=grpcMessages(r.body);
  return {payload:messages[messages.length-1],messages,complete:header(r,'grpc-status')==='0'};
 }
+// Read-only opt-in direct C3 test: Zepp's documented Fetch lacks binary
+// response options. This attempts two encodings of GetLatestBattery only;
+// no command RPCs, no third-party hosts and no raw-token/payload diagnostics.
+let c3TransportInFlight=false;
+async function testNativeC3Formats(){
+ const s=store();
+ if(c3TransportInFlight)return;
+ c3TransportInFlight=true;
+ s.removeItem('polestar.c3.transport.request');
+ s.setItem('polestar.c3.transport.status','testing');
+ const report={tested:true,verified:false,attempts:[],outcome:'not_supported'};
+ try{
+  const vin=s.getItem('vehicle.vin'),host=s.getItem('polestar.c3');
+  if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin||'')||
+    !/^[a-z0-9.-]+$/i.test(host||''))
+   throw Error('Vehicle not configured');
+  const token=await accessToken();
+  const payload=grpcFrame(requestFor(vin,false,'zepp-c3-probe-'+Date.now().toString(36)));
+  const url='https://'+host+'/services.vehiclestates.battery.BatteryService/GetLatestBattery';
+  const headers={'Content-Type':'application/grpc','TE':'trailers',
+   'Authorization':'Bearer '+token,'vin':vin,
+   'grpc-accept-encoding':'identity','User-Agent':'grpc-java-okhttp/1.68.2'};
+  const variations=[
+   {name:'arraybuffer',body:payload.buffer},
+   {name:'string',body:Array.from(payload,b=>String.fromCharCode(b)).join('')}
+  ];
+  for(const mode of variations){
+   const attempt={mode:mode.name};
+   s.setItem('polestar.c3.transport.status','testing_'+mode.name);
+   try{
+    const response=await http(url,'POST',headers,mode.body);
+    Object.assign(attempt,summarizeC3Response(response));
+    if(response.status===200){
+     try{
+      const contentType=header(response,'content-type');
+      if(!/^application\\/grpc(?:[+;]|$)/i.test(contentType))
+       throw Error('Unexpected Content-Type');
+      const messages=grpcMessages(response.body);
+      const result=decodeBattery(messages[messages.length-1]);
+      attempt.battery_payload_valid=true;
+      attempt.trailers_valid=String(header(response,'grpc-status'))==='0';
+      if(attempt.trailers_valid){
+       report.outcome='verified_native_battery';
+       report.verified=true;
+       report.supported_mode=mode.name;
+       report.battery_percent=result.battery_percent;
+       report.range_km=result.range_km;
+      }
+     }catch(e){
+      attempt.battery_payload_valid=false;
+      attempt.trailers_valid=false;
+      attempt.parse_failure=summarizeC3Error(e);
+     }
+    }
+   }catch(e){attempt.error=summarizeC3Error(e);}
+   report.attempts.push(attempt);
+   if(report.verified)break;
+  }
+  if(!report.verified)report.outcome='no_usable_native_transport';
+ }catch(e){report.outcome=summarizeC3Error(e);}
+ finally{
+  s.setItem('polestar.c3.transport.report',JSON.stringify(report));
+  s.setItem('polestar.c3.transport.status','complete');
+  c3TransportInFlight=false;
+ }
+}
 // Read-only alternative to native gRPC. Never perform lock/unlock as part of
 // this diagnostic. Works only if the Polestar C3 host supports gRPC-Web-text.
 async function testWebTextTransport(vin){
@@ -523,6 +590,8 @@ function receiveStorageChange({key}={}){
    'vehicle.verified','vehicle.source','polestar.manual.vin.request',
    'polestar.webtext.probe','polestar.vehicle.verify.status',
    'polestar.vehicle.verify.request',
+   'polestar.c3.transport.report','polestar.c3.transport.status',
+   'polestar.c3.transport.request',
    'polestar.login.request','polestar.login.request.at'])
    store().removeItem(k);
   store().setItem('polestar.login.status','Signed out');
@@ -535,6 +604,8 @@ function receiveStorageChange({key}={}){
   void connectManualVin();
  }else if(key==='polestar.vehicle.verify.request'){
   void verifyVehicleStatus();
+ }else if(key==='polestar.c3.transport.request'){
+  void testNativeC3Formats();
  }else if(key==='polestar.probe.request'){
   void processConnectionProbe();
  }else if(key==='polestar.login.probe.request'){
@@ -553,6 +624,8 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
+  if(store().getItem('polestar.c3.transport.request'))
+   void testNativeC3Formats();
   if(store().getItem('polestar.vehicle.verify.request'))
    void verifyVehicleStatus();
  },
@@ -563,6 +636,8 @@ AppSideService(BaseSideService({
   void processLoginTransportProbe();
   void processDirectLogin();
   void connectManualVin();
+  if(store().getItem('polestar.c3.transport.request'))
+   void testNativeC3Formats();
   if(store().getItem('polestar.vehicle.verify.request'))
    void verifyVehicleStatus();
  },
@@ -578,7 +653,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.23-watch-metrics-fix',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.3.24-c3-native-transport-check',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    if(req.method==='vehicle.capabilities'){
     res(null,{ok:true,authenticated:!!store().getItem('polestar.access'),
