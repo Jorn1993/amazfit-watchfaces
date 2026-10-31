@@ -11,8 +11,8 @@ android {
         applicationId = "dev.polestarlink.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
     buildTypes {
         release { isMinifyEnabled = false }
@@ -36,6 +36,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.grpc:grpc-okhttp:1.68.2")
     implementation("io.grpc:grpc-stub:1.68.2")
     implementation("com.google.protobuf:protobuf-java:3.25.5")
