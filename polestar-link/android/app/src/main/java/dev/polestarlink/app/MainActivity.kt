@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +67,9 @@ private val Ivory = Color(0xFFF4F5F1)
 private val Muted = Color(0xFF9DA6A3)
 private val Mint = Color(0xFFB5DCCC)
 private val ErrorTone = Color(0xFFEAABA5)
+private val UnlockedAccent = Color(0xFFFFC77D)
+private val UnlockedSurface = Color(0xFF362A21)
+private val LockedSurface = Color(0xFF20302C)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,8 +97,6 @@ class MainActivity : ComponentActivity() {
 private data class ActionItem(val key: String, val name: String, val icon: ImageVector,
     val summary: String)
 private val mainActions = listOf(
-    ActionItem("lock", "Lock", Icons.Filled.Lock, "Secure all doors"),
-    ActionItem("unlock", "Unlock", Icons.Filled.LockOpen, "Unlock your vehicle"),
     ActionItem("climate_start", "Climate", Icons.Filled.Thermostat, "Start cabin climate"),
     ActionItem("trunk", "Trunk", Icons.Filled.DirectionsCar, "Release the trunk")
 )
@@ -114,7 +117,7 @@ private fun CompanionScreen(
     val state by app.repository.status.collectAsState()
     val repoError by app.repository.error.collectAsState()
     var signedIn by remember { mutableStateOf(app.auth.isSignedIn()) }
-    var tab by remember { mutableIntStateOf(0) }
+    val pager = rememberPagerState(initialPage = 0, pageCount = { 3 })
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var url by remember { mutableStateOf<String?>(null) }
@@ -122,6 +125,9 @@ private fun CompanionScreen(
     var vinInput by remember { mutableStateOf(app.repository.vin.orEmpty()) }
     var pairingCode by remember { mutableStateOf<String?>(null) }
 
+    fun navigate(page: Int) {
+        scope.launch { pager.animateScrollToPage(page.coerceIn(0, 2)) }
+    }
     fun refresh() {
         if (busy || !signedIn || app.repository.vin == null) return
         scope.launch {
@@ -142,11 +148,11 @@ private fun CompanionScreen(
                 try {
                     app.auth.finish(callback)
                     signedIn = true
-                    tab = 0
+                    pager.scrollToPage(0)
                     message = "Polestar ID connected."
                     if (app.repository.vin != null) app.repository.refresh()
                 } catch (e: Exception) {
-                    message = e.message ?: "Polestar authorization failed"
+                    message = "Polestar sign-in could not be completed."
                 } finally { busy = false }
             }
         })
@@ -158,28 +164,29 @@ private fun CompanionScreen(
             onDismissRequest = { confirming = null },
             icon = { Icon(action.icon, null, tint = Mint) },
             title = { Text(action.name, color = Ivory) },
-            text = { Text("Send ${action.name.lowercase()} to your Polestar 4?\n\nOnly proceed when the vehicle is in a safe condition.", color = Muted) },
+            text = { Text(
+                "Send ${action.name.lowercase()} to your Polestar 4?\n\n" +
+                "If the connection times out, check the car's actual state before trying again.",
+                color = Muted
+            ) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = !busy, onClick = {
                     confirming = null
-                    scope.launch {
+                    if (!busy) scope.launch {
                         busy = true
                         try {
                             val result = app.repository.command(action.key)
                             message = result.text
                         } catch (e: Exception) {
-                            message = e.message ?: "Vehicle command unavailable"
+                            message = "Command outcome could not be verified. Refresh car status before retrying."
                         } finally { busy = false }
                     }
                 }) { Text("CONFIRM", color = Mint, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { confirming = null }) {
-                    Text("CANCEL", color = Muted)
-                }
+                TextButton(onClick = { confirming = null }) { Text("CANCEL", color = Muted) }
             },
-            containerColor = SurfaceLight,
-            titleContentColor = Ivory
+            containerColor = SurfaceLight, titleContentColor = Ivory
         )
     }
     Scaffold(
@@ -193,100 +200,134 @@ private fun CompanionScreen(
                         Triple("Settings", Icons.Filled.Settings, 2)
                     ).forEach { (name, icon, index) ->
                         NavigationBarItem(
-                            selected = tab == index, onClick = { tab = index },
+                            selected = pager.currentPage == index,
+                            onClick = { navigate(index) },
                             icon = { Icon(icon, contentDescription = name) },
                             label = { Text(name, fontSize = 11.sp) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Mint,
-                                selectedTextColor = Ivory,
+                                selectedIconColor = Mint, selectedTextColor = Ivory,
                                 indicatorColor = SurfaceLight,
-                                unselectedIconColor = Muted, unselectedTextColor = Muted)
+                                unselectedIconColor = Muted, unselectedTextColor = Muted
+                            )
                         )
                     }
                 }
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
             Spacer(Modifier.height(16.dp))
-            BrandHeader(
-                statusText = when {
-                    !signedIn -> "NOT CONNECTED"
-                    state != null -> "C3 CONNECTED"
-                    else -> "C3 OFFLINE"
-                }, live = state != null,
-                onRefresh = { refresh() }
-            )
-            if (!signedIn) {
-                IntroScreen(
-                    busy = busy, onLogin = {
-                        scope.launch {
-                            busy = true
-                            try { url = app.auth.begin().url; message = null }
-                            catch (e: Exception) { message = "Unable to open Polestar sign-in" }
-                            finally { busy = false }
-                        }
-                    }
-                )
-            } else when (tab) {
-                0 -> HomeScreen(state, app.repository.vin, busy, onRefresh = { refresh() },
-                    onControl = { confirming = it }, onSettings = { tab = 2 })
-                1 -> ControlsScreen(state != null, onControl = { confirming = it })
-                2 -> SettingsScreen(
-                    vinInput = vinInput, onVinChange = { vinInput = it },
-                    onSaveVin = {
-                        try {
-                            app.repository.setVin(vinInput)
-                            message = "Vehicle configured."
-                            refresh()
-                        } catch (e: Exception) { message = e.message }
+            Box(Modifier.fillMaxWidth().padding(horizontal = 22.dp)) {
+                BrandHeader(
+                    statusText = when {
+                        !signedIn -> "NOT CONNECTED"
+                        state != null -> "C3 CONNECTED"
+                        else -> "C3 OFFLINE"
                     },
-                    pairCode = pairingCode,
-                    onPair = {
-                        onEnableBridge()
-                        pairingCode = app.bridge.newPairCode()
-                    },
-                    onStopBridge = {
-                        onStopBridge()
-                        app.bridge.revoke()
-                        pairingCode = null
-                    },
-                    onSignOut = {
-                        onStopBridge()
-                        app.bridge.revoke()
-                        app.repository.clear()
-                        signedIn = false
-                        tab = 0
-                        message = null
-                    }
+                    live = state != null,
+                    onRefresh = { refresh() }
                 )
             }
             if (busy) {
+                Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(2.dp),
                     color = Mint, trackColor = SurfaceLight
                 )
             }
-            val notice = message ?: repoError
-            if (!notice.isNullOrBlank()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceLight).padding(15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+            if (signedIn) {
+                // Pager consumes horizontal swipes; each page scrolls vertically.
+                // Bottom navigation and swipe state always remain synchronized.
+                HorizontalPager(
+                    state = pager,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        Spacer(Modifier.height(10.dp))
+                        when (page) {
+                            0 -> HomeScreen(
+                                state, app.repository.vin, busy,
+                                onRefresh = { refresh() },
+                                onControl = { if (!busy) confirming = it },
+                                onSettings = { navigate(2) }
+                            )
+                            1 -> ControlsScreen(state, busy,
+                                onControl = { if (!busy) confirming = it })
+                            2 -> SettingsScreen(
+                                vinInput = vinInput, onVinChange = { vinInput = it },
+                                onSaveVin = {
+                                    try {
+                                        app.repository.setVin(vinInput)
+                                        message = "Vehicle configured."
+                                        refresh()
+                                    } catch (e: Exception) { message = e.message }
+                                },
+                                pairCode = pairingCode,
+                                onPair = {
+                                    onEnableBridge()
+                                    pairingCode = app.bridge.newPairCode()
+                                },
+                                onStopBridge = {
+                                    onStopBridge()
+                                    app.bridge.revoke()
+                                    pairingCode = null
+                                },
+                                onSignOut = {
+                                    onStopBridge()
+                                    app.bridge.revoke()
+                                    app.repository.clear()
+                                    signedIn = false
+                                    navigate(0)
+                                    message = null
+                                }
+                            )
+                        }
+                        val notice = message ?: repoError
+                        if (!notice.isNullOrBlank()) NoticeCard(notice)
+                        Spacer(Modifier.height(26.dp))
+                    }
+                }
+            } else {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Icon(Icons.Filled.WarningAmber, null, tint = Mint)
-                    Text(notice, color = Ivory, fontSize = 13.sp)
+                    Spacer(Modifier.height(18.dp))
+                    IntroScreen(busy) {
+                        scope.launch {
+                            busy = true
+                            try { url = app.auth.begin().url; message = null }
+                            catch (e: Exception) {
+                                message = "Unable to open Polestar sign-in"
+                            } finally { busy = false }
+                        }
+                    }
+                    val notice = message ?: repoError
+                    if (!notice.isNullOrBlank()) NoticeCard(notice)
+                    Spacer(Modifier.height(24.dp))
                 }
             }
-            Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun NoticeCard(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(SurfaceLight).padding(15.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(Icons.Filled.WarningAmber, null, tint = Mint)
+        Text(text, color = Ivory, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }
 
@@ -401,20 +442,17 @@ private fun HomeScreen(
             color = Muted, fontSize = 12.sp)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        InfoTile("LOCK STATUS", status?.lockState?.uppercase() ?: "UNKNOWN",
-            Icons.Filled.Lock, Modifier.weight(1f))
         InfoTile("CHARGING", status?.let { if (it.charging) "CHARGING" else "NOT CHARGING" }
             ?: "UNKNOWN", Icons.Filled.ElectricCar, Modifier.weight(1f))
+        InfoTile("C3 STATUS", if (status != null) "CONNECTED" else "OFFLINE",
+            Icons.Filled.Check, Modifier.weight(1f))
     }
+    SectionHeader("Vehicle security", if (status == null) "STATUS UNAVAILABLE" else "LIVE C3")
+    LockControlCard(status, !busy, onControl)
     SectionHeader("Quick actions", if (status == null) "REQUIRES LIVE C3" else "READY")
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        mainActions.take(2).forEach {
-            ActionTile(it, status != null, Modifier.weight(1f)) { onControl(it) }
-        }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        mainActions.drop(2).forEach {
-            ActionTile(it, status != null, Modifier.weight(1f)) { onControl(it) }
+        mainActions.forEach {
+            ActionTile(it, status != null && !busy, Modifier.weight(1f)) { onControl(it) }
         }
     }
     if (vin == null) SolidButton("ADD YOUR VEHICLE VIN", true, onSettings)
@@ -469,21 +507,96 @@ private fun ActionTile(
 }
 
 @Composable
-private fun ControlsScreen(live: Boolean, onControl: (ActionItem) -> Unit) {
-    SectionHeader("Vehicle controls", if (live) "C3 LIVE" else "OFFLINE")
-    Text("Every remote action requires confirmation. Status is checked before controls can be sent.",
+private fun ControlsScreen(
+    status: VehicleStatus?, busy: Boolean, onControl: (ActionItem) -> Unit
+) {
+    SectionHeader("Vehicle controls", if (status != null) "C3 LIVE" else "OFFLINE")
+    Text("Tap an action to confirm. A timed-out command may still reach the vehicle.",
         color = Muted, fontSize = 14.sp, lineHeight = 21.sp)
+    LockControlCard(status, !busy, onControl)
     val all = mainActions + extraActions
     all.chunked(2).forEach { pair ->
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             pair.forEach { action ->
-                ActionTile(action, live, Modifier.weight(1f)) { onControl(action) }
+                ActionTile(action, status != null && !busy, Modifier.weight(1f)) {
+                    onControl(action)
+                }
             }
             if (pair.size == 1) Spacer(Modifier.weight(1f))
         }
     }
-    Text("Commands are unofficial and may not be supported by every Polestar software version.",
+    Text("Always verify the car's actual state before retrying a remote action.",
         color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+}
+
+@Composable
+private fun LockControlCard(
+    status: VehicleStatus?, enabled: Boolean, onControl: (ActionItem) -> Unit
+) {
+    val model = lockControlState(status?.lockState, status != null)
+    val tint = when {
+        model.unlocked -> UnlockedAccent
+        model.locked -> Mint
+        else -> Muted
+    }
+    val surface = when {
+        model.unlocked -> UnlockedSurface
+        model.locked -> LockedSurface
+        else -> Surface
+    }
+    val shape = RoundedCornerShape(23.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(shape)
+            .background(surface).border(1.dp, tint.copy(alpha = .55f), shape)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (model.unlocked) Icons.Filled.LockOpen else Icons.Filled.Lock,
+                contentDescription = model.status, tint = tint,
+                modifier = Modifier.size(35.dp)
+            )
+            Spacer(Modifier.width(17.dp))
+            Column(Modifier.weight(1f)) {
+                Text("VEHICLE SECURITY", color = Muted,
+                    fontSize = 10.sp, letterSpacing = 1.5.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(model.status, color = tint, fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold)
+            }
+            Box(Modifier.size(9.dp).background(tint, CircleShape))
+        }
+        Text(
+            when {
+                model.unlocked -> "Vehicle is unlocked · tap below to secure it"
+                model.locked -> "Vehicle is locked · tap below to unlock"
+                else -> "Lock state is unknown. Refresh the vehicle first."
+            },
+            fontSize = 12.sp, lineHeight = 18.sp, color = Muted
+        )
+        Button(
+            onClick = {
+                val action = model.action ?: return@Button
+                onControl(ActionItem(
+                    action,
+                    if (action == "lock") "Lock" else "Unlock",
+                    if (action == "lock") Icons.Filled.Lock else Icons.Filled.LockOpen,
+                    "Confirm vehicle lock change"
+                ))
+            },
+            enabled = enabled && model.action != null,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(13.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = tint, contentColor = Night,
+                disabledContainerColor = SurfaceLight, disabledContentColor = Muted
+            )
+        ) {
+            Text(model.actionLabel, fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp, fontSize = 13.sp)
+        }
+    }
 }
 
 @Composable
