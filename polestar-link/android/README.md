@@ -43,3 +43,18 @@ Debug APKs are not production-signed and should only be installed by their
 owner. This project is not affiliated with Polestar.
 
 C3 reference: https://github.com/kildahldev/unofficial-polestar-api
+
+## Version 0.2.0 UI and C3 command safety
+
+Home and Controls share a single C3-read state-aware lock card:
+**amber UNLOCKED → LOCK VEHICLE**, **sage LOCKED → UNLOCK VEHICLE**.
+Unknown or offline lock status disables the button. The three screens are
+swipeable with synchronized bottom tabs. An invocation stream timeout now
+triggers *read-only* exterior-state reconciliation instead of blindly
+retrying a physical action; unknown results never change the displayed lock
+state optimistically. Commands still require confirmation.
+
+Debug APKs generated on separate GitHub runners may have **different signing
+certificates**. If Android rejects an update with a signature conflict, remove
+the prior debug app and reinstall (this clears locally encrypted tokens and
+will require signing in again). Do not treat this as a production signing setup.
