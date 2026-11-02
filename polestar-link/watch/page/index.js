@@ -1,117 +1,153 @@
 import * as ui from '@zos/ui';
 import { BasePage } from '@zeppos/zml/base-page';
 
-// Two-view Zepp UI for Polestar 4. Controls never send a C3 command until
-// real native vehicle state was verified and the wearer confirms within 10s.
-const MAIN=[
- {label:'LOCK',action:'lock'},{label:'UNLOCK',action:'unlock'},
- {label:'CLIMATE',action:'climate_start'},{label:'MORE',action:'more'}
-];
-const MORE=[
- {label:'TRUNK',action:'trunk_unlock'},{label:'FLASH',action:'flash'},
- {label:'HONK',action:'honk'},{label:'HONK + FLASH',action:'honk_flash'},
- {label:'OPEN WINDOWS',action:'windows_open'},
- {label:'CLOSE WINDOWS',action:'windows_close'},
- {label:'CLIMATE ON',action:'climate_start'},
- {label:'CLIMATE OFF',action:'climate_stop'}
-];
-const PALETTE={
- bg:0x0c0e10,card:0x1b1e20,surface:0x252a2c,accent:0xd9e1db,
- text:0xf2f3f0,muted:0x9da6a3,warning:0xb4b9b6
-};
+// A single state-driven card per control. No inferred vehicle states.
+const C={bg:0x0c0e10,surface:0x26302e,card:0x1b1e20,muted:0x9ba8a1,
+ ink:0xf3f4f1,active:0xb4e8c7,activeInk:0x09271f};
+const VIEWS=['main','more','status','exterior'];
+const ACTIONS=[['TRUNK','trunk_unlock'],['FLASH','flash'],
+ ['HONK','honk'],['HONK + FLASH','honk_flash']];
+const fmt=v=>v===undefined||v===null||v===''||v==='unknown'?'--':String(v);
+const num=(v,unit)=>typeof v==='number'&&Number.isFinite(v)&&v>=0?
+ Math.round(v)+unit:'--';
+const level=(s,yes,no)=>yes.includes(s)?'on':no.includes(s)?'off':'unknown';
 Page(BasePage({
  build(){
-  this.busy=false;this.disposed=false;this.pending=null;this.screen=0;
-  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
-  this.widgets={main:[],more:[]};
-  const shared=(type,params)=>ui.createWidget(type,params);
+  this.screen=0;this.busy=false;this.disposed=false;this.pending=null;
+  this.polestarMetrics={battery:null,range:null,charging:null,lock:'unknown',verified:false};
+  this.detailValues={};this.widgets={main:[],more:[],status:[],exterior:[]};
+  this.toggles=[];this.rows=[];
+  const create=(type,params)=>ui.createWidget(type,params);
   const add=(page,type,params)=>{
-   const w=shared(type,params);this.widgets[page].push(w);return w;
+   const w=create(type,params);this.widgets[page].push(w);return w;
   };
-  const txt=(page,x,y,w,h,text,size=20,color=PALETTE.text)=>add(
-   page,ui.widget.TEXT,{x,y,w,h,text,text_size:size,color,
+  const txt=(page,x,y,w,h,value,size=18,color=C.ink)=>
+   add(page,ui.widget.TEXT,{x,y,w,h,text:value,text_size:size,color,
     align_h:ui.align.CENTER_H,text_style:ui.text_style.WRAP});
-  const button=(page,x,y,w,h,label,callback,color=PALETTE.surface,size=20)=>
-   add(page,ui.widget.BUTTON,{x,y,w,h,radius:16,text:label,
-    text_size:size,color:PALETTE.text,normal_color:color,
-    press_color:0x43504c,click_func:callback});
-  const background=shared(ui.widget.FILL_RECT,{x:0,y:0,w:480,h:480,color:PALETTE.bg});
-  this.logo=shared(ui.widget.IMG,{x:216,y:36,w:48,h:48,
-   src:'polestar-mark.png',auto_scale:true});
-  this.brand=shared(ui.widget.TEXT,{x:90,y:89,w:300,h:35,
-   text:'P O L E S T A R',text_size:23,color:PALETTE.text,
-   align_h:ui.align.CENTER_H});
-  this.title=shared(ui.widget.TEXT,{x:64,y:132,w:352,h:35,
-   text:'POLESTAR 4',text_size:21,color:PALETTE.muted,align_h:ui.align.CENTER_H});
-  // Small refresh action available without adding a third watch page.
-  this.refreshButton=button('main',354,130,64,36,'SYNC',
-   ()=>{void this.refresh();},PALETTE.surface,15);
-  // Overview: large paired vehicle metrics, no invented live data.
-  add('main',ui.widget.FILL_RECT,{x:56,y:171,w:368,h:110,radius:25,color:PALETTE.card});
-  this.battery=txt('main',73,189,164,46,'-- %',41);
-  this.range=txt('main',243,189,164,46,'-- km',36);
-  txt('main',78,239,156,22,'BATTERY',15,PALETTE.muted);
-  txt('main',245,239,158,22,'RANGE',15,PALETTE.muted);
-  this.notice=txt('main',67,283,346,32,'Connect in Zepp to get started',16,PALETTE.muted);
-  MAIN.forEach((item,i)=>{
-   const firstRow=i<2,x=firstRow?(i===0?66:246):(i===2?99:248);
-   const y=firstRow?326:391,w=firstRow?169:133,h=firstRow?56:42;
-   const widget=button('main',x,y,w,h,item.label,()=>{
-    if(item.action==='more'){
-     if(this.pending)void this.confirm();else this.setPage(1);
-    }else void this.arm(item.action);
-   },i===1?0x353c3b:PALETTE.surface,firstRow?21:18);
-   if(i===3)this.mainMore=widget;
+  const button=(page,x,y,w,h,label,click,bg=C.surface,size=17,fg=C.ink)=>
+   add(page,ui.widget.BUTTON,{x,y,w,h,radius:14,text:label,text_size:size,
+    color:fg,normal_color:bg,press_color:0x45554b,click_func:click});
+  const navigation=(page,x,label,next)=>button(page,x,423,108,36,label,()=>{
+   if(this.pending)void this.confirm();else this.setPage(next);
+  },C.surface,14);
+  const toggle=(page,x,y,label,key,activate,deactivate)=>{
+   const on=button(page,x,y,163,51,label+' ON',()=>void this.arm(deactivate),C.active,16,C.activeInk);
+   const off=button(page,x,y,163,51,label+' OFF',()=>void this.arm(activate),C.surface,16);
+   const unknown=button(page,x,y,163,51,label+' --',
+    ()=>this.show('Live '+label.toLowerCase()+' state is unavailable'),C.card,16,C.muted);
+   this.toggles.push({page,key,on,off,unknown});
+  };
+  const statusRow=(page,index,label,key)=>{
+   const y=188+index*29;
+   txt(page,80,y,178,29,label,15,C.muted);
+   this.rows.push({page,key,value:txt(page,250,y,148,29,'--',16)});
+  };
+  create(ui.widget.FILL_RECT,{x:0,y:0,w:480,h:480,color:C.bg});
+  create(ui.widget.IMG,{x:218,y:28,w:44,h:44,src:'polestar-mark.png',auto_scale:true});
+  create(ui.widget.TEXT,{x:90,y:76,w:300,h:32,text:'P O L E S T A R',
+   text_size:22,color:C.ink,align_h:ui.align.CENTER_H});
+  this.title=create(ui.widget.TEXT,{x:67,y:116,w:346,h:35,text:'POLESTAR 4',
+   text_size:21,color:C.muted,align_h:ui.align.CENTER_H});
+  add('main',ui.widget.FILL_RECT,{x:62,y:164,w:356,h:103,radius:22,color:C.card});
+  this.battery=txt('main',80,176,150,48,'-- %',38);
+  this.range=txt('main',248,176,154,48,'-- km',34);
+  txt('main',90,230,130,23,'BATTERY',14,C.muted);
+  txt('main',265,230,115,23,'RANGE',14,C.muted);
+  this.notice=txt('main',75,269,330,29,'Pair Android in Zepp',14,C.muted);
+  this.refreshButton=button('main',354,118,65,34,'SYNC',()=>void this.refresh(),C.surface,15);
+  toggle('main',71,301,'LOCK','lock','unlock','lock');
+  toggle('main',245,301,'WINDOWS','window','windows_open','windows_close');
+  toggle('main',71,360,'CLIMATE','climate','climate_start','climate_stop');
+  toggle('main',245,360,'CHARGE','charge','charge_start','charge_stop');
+  this.mainMore=navigation('main',128,'CONTROLS',1);
+  this.mainStatus=navigation('main',246,'STATUS',2);
+  this.moreNotice=txt('more',75,159,330,33,'Actions require confirmation',14,C.muted);
+  ACTIONS.forEach((a,i)=>{
+   const x=i%2===0?72:246,y=204+Math.floor(i/2)*62;
+   button('more',x,y,162,55,a[0],()=>void this.arm(a[1]),C.surface,a[0].length>10?15:18);
   });
-  // Second page: eight actions, arranged in a compact 2-column grid.
-  MORE.forEach((item,i)=>{
-   const col=i%2,row=Math.floor(i/2),x=62+col*180,y=197+row*55;
-   button('more',x,y,176,48,item.label,()=>{void this.arm(item.action);},
-    PALETTE.surface,item.label.length>9?15:18);
-  });
-  this.backButton=button('more',159,423,162,39,'BACK',()=>{
-   if(this.pending)void this.confirm();else this.setPage(0);
-  },0x323839,17);
-  this.moreNotice=txt('more',65,164,350,27,'',15,PALETTE.muted);
-  this.setPage(0);
-  void this.refresh();
+  txt('more',84,346,310,43,'State-aware controls are on Home',15,C.muted);
+  this.backButton=navigation('more',128,'HOME',0);
+  this.moreStatus=navigation('more',246,'STATUS',2);
+  this.statusNotice=txt('status',75,157,330,30,'Polestar C3 status',14,C.muted);
+  [['BATTERY','battery'],['RANGE','range'],['CHARGING','charging'],
+   ['CABLE','cable'],['POWER','power'],['CLIMATE','climate'],
+   ['TIME TO FULL','timeToFull'],['ODOMETER','odometer']].forEach((item,i)=>
+    statusRow('status',i,item[0],item[1]));
+  this.statusHome=navigation('status',128,'HOME',0);
+  this.statusNext=navigation('status',246,'EXTERIOR',3);
+  this.exteriorNotice=txt('exterior',75,157,330,30,'Doors and windows',14,C.muted);
+  [['LOCK','lock'],['WINDOWS','window'],['FRONT LEFT','frontLeftDoor'],
+   ['FRONT RIGHT','frontRightDoor'],['REAR LEFT','rearLeftDoor'],
+   ['REAR RIGHT','rearRightDoor'],['TRUNK','trunk'],['HOOD','hood']].forEach((item,i)=>
+    statusRow('exterior',i,item[0],item[1]));
+  this.exteriorHome=navigation('exterior',128,'HOME',0);
+  this.exteriorBack=navigation('exterior',246,'STATUS',2);
+  this.setPage(0);void this.refresh();
  },
- show(message){
+ show(msg){
   if(this.disposed)return;
-  const msg=String(message||'').slice(0,126);
-  if(this.screen===0)this.notice.setProperty(ui.prop.TEXT,msg);
-  else this.moreNotice.setProperty(ui.prop.TEXT,msg);
+  const w=[this.notice,this.moreNotice,this.statusNotice,this.exteriorNotice][this.screen];
+  if(w)w.setProperty(ui.prop.TEXT,String(msg||'').slice(0,110));
+ },
+ field(key){
+  const m=this.polestarMetrics||{},d=this.detailValues||{};
+  switch(key){
+   case 'battery':return num(m.battery,' %');
+   case 'range':return num(m.range,' km');
+   case 'lock':return fmt(m.lock);
+   case 'window':return fmt(d.window_state);
+   case 'climate':return fmt(d.climate_state);
+   case 'charge':case 'charging':return fmt(d.charging_state);
+   case 'cable':return fmt(d.charger_connection);
+   case 'power':return num(d.charging_power_watts,' W');
+   case 'timeToFull':return num(d.time_to_full_minutes,' min');
+   case 'odometer':return num(d.odometer_km,' km');
+   case 'frontLeftDoor':return fmt(d.front_left_door);
+   case 'frontRightDoor':return fmt(d.front_right_door);
+   case 'rearLeftDoor':return fmt(d.rear_left_door);
+   case 'rearRightDoor':return fmt(d.rear_right_door);
+   case 'trunk':return fmt(d.trunk);
+   case 'hood':return fmt(d.hood);
+   default:return '--';
+  }
+ },
+ mode(key){
+  if(!this.polestarMetrics.verified)return 'unknown';
+  if(key==='lock')return level(this.polestarMetrics.lock,['unlocked'],['locked']);
+  if(key==='window')return level(this.detailValues.window_state,['open','ajar'],['closed']);
+  if(key==='climate')return level(this.detailValues.climate_state,['active','starting'],['idle']);
+  if(key==='charge')return level(this.detailValues.charging_state,
+   ['charging','smart charging'],['idle','scheduled','discharging','complete','paused']);
+  return 'unknown';
  },
  render(){
   if(this.disposed)return;
-  this.title.setProperty(ui.prop.TEXT,this.screen===0?'POLESTAR 4':'VEHICLE CONTROLS');
-  for(const page of ['main','more']){
-   const visible=(page==='main')===(this.screen===0);
-   for(const item of this.widgets[page])item.setProperty(ui.prop.VISIBLE,visible);
+  this.title.setProperty(ui.prop.TEXT,
+   ['POLESTAR 4','VEHICLE CONTROLS','VEHICLE STATUS','EXTERIOR STATUS'][this.screen]);
+  const current=VIEWS[this.screen];
+  for(const page of VIEWS)
+   for(const w of this.widgets[page])w.setProperty(ui.prop.VISIBLE,page===current);
+  for(const t of this.toggles){
+   const m=this.mode(t.key),visible=t.page===current;
+   t.on.setProperty(ui.prop.VISIBLE,visible&&m==='on');
+   t.off.setProperty(ui.prop.VISIBLE,visible&&m==='off');
+   t.unknown.setProperty(ui.prop.VISIBLE,visible&&m==='unknown');
   }
-  if(this.pending){
-   if(this.screen===0)this.mainMore.setProperty(ui.prop.TEXT,'CONFIRM');
-   else this.backButton.setProperty(ui.prop.TEXT,'CONFIRM');
-  }else{
-   this.mainMore.setProperty(ui.prop.TEXT,'MORE');
-   this.backButton.setProperty(ui.prop.TEXT,'BACK');
-  }
-  // BasePage may own a framework-managed 'state' property on real Zepp OS.
-  // Keep our metrics separate and never stringify undefined or invalid values.
-  const values=this.polestarMetrics||{};
-  const battery=Number.isFinite(values.battery)&&values.battery>=0&&values.battery<=100?
-   Math.round(values.battery)+' %':'-- %';
-  const range=Number.isFinite(values.range)&&values.range>=0&&values.range<=2000?
-   Math.round(values.range)+' km':'-- km';
-  this.battery.setProperty(ui.prop.TEXT,battery);
-  this.range.setProperty(ui.prop.TEXT,range);
+  this.battery.setProperty(ui.prop.TEXT,this.field('battery'));
+  this.range.setProperty(ui.prop.TEXT,this.field('range'));
+  for(const r of this.rows)r.value.setProperty(ui.prop.TEXT,this.field(r.key));
+  for(const b of [this.mainMore,this.backButton,this.statusHome,this.exteriorHome])
+   b.setProperty(ui.prop.TEXT,this.pending?'CONFIRM':b===this.mainMore?'CONTROLS':'HOME');
  },
  setPage(page){
-  this.pending=null;this.screen=page===1?1:0;
+  this.pending=null;
+  this.screen=Number.isInteger(page)&&page>=0&&page<4?page:0;
   this.render();
-  this.show(page===1?'Choose an action':'Tap a control or refresh in Zepp');
+  this.show(['Tap control or SYNC','Choose a vehicle action','Live vehicle status',
+   'Live exterior status'][this.screen]);
  },
- next(){this.setPage(this.screen===0?1:0);},
+ next(){this.setPage((this.screen+1)%4);},
  async phoneRequest(message,timeout){
   if(this.messaging&&typeof this.messaging.request==='function')
    return this.messaging.request(message,{timeout});
@@ -122,16 +158,15 @@ Page(BasePage({
   this.busy=true;
   try{
    const cap=await this.phoneRequest({method:'vehicle.capabilities'},12000);
-   if(!cap||!cap.ok||!cap.native_verified){
+   if(!cap||!cap.ok||!cap.native_verified||!this.polestarMetrics.verified){
     this.pending=null;this.render();
-    this.show('Controls unavailable: native C3 not verified.');
-    return;
+    this.show('Controls unavailable: refresh verified vehicle state');return;
    }
-   this.pending={action,expires:Date.now()+10000};this.render();
-   this.show('Confirm '+action.replace(/_/g,' ').toUpperCase()+' within 10s');
+   this.pending={action,expires:Date.now()+10000};
+   this.render();this.show('Confirm '+action.replace(/_/g,' ').toUpperCase()+' within 10s');
   }catch(e){
    this.pending=null;this.render();
-   this.show('Phone connection unavailable: '+String(e&&e.message||e).slice(0,50));
+   this.show('Phone unavailable: '+String(e&&e.message||e).slice(0,55));
   }finally{this.busy=false;}
  },
  async confirm(){
@@ -140,13 +175,12 @@ Page(BasePage({
   if(Date.now()>p.expires){this.show('Confirmation expired');return;}
   this.busy=true;
   try{
-   this.show('Sending '+p.action.replace(/_/g,' ')+'…');
-   const r=await this.phoneRequest({
-    method:'vehicle.command',params:{action:p.action,confirmed:true}
-   },60000);
-   this.show(r&&r.ok&&r.verified?'Vehicle state verified':
-    r&&r.error||'Command not verified');
-  }catch(e){this.show('Command failed: '+String(e&&e.message||e).slice(0,65));}
+   this.show('Sending '+p.action.replace(/_/g,' ')+'...');
+   const r=await this.phoneRequest({method:'vehicle.command',
+    params:{action:p.action,confirmed:true}},60000);
+   this.show(r&&r.ok&&r.verified?'Command verified; tap SYNC to update':
+    r&&r.error||'Command unverified; refresh before retrying');
+  }catch(e){this.show('Command failed: '+String(e&&e.message||e).slice(0,60));}
   finally{this.busy=false;}
  },
  async footerAction(){
@@ -156,27 +190,33 @@ Page(BasePage({
  async refresh(){
   if(this.busy)return;
   this.busy=true;
-  // Never display stale live telemetry after reconnection or a failed refresh.
-  this.polestarMetrics={battery:null,range:null,charging:false,lock:'unknown',verified:false};
-  this.render();
+  this.polestarMetrics={battery:null,range:null,charging:null,lock:'unknown',verified:false};
+  this.detailValues={};this.render();
   try{
    const cap=await this.phoneRequest({method:'vehicle.capabilities'},12000);
-   if(!cap||!cap.authenticated){this.show('Connect your Polestar ID in Zepp');return;}
-   if(!cap.vehicle_configured){this.show('Add your vehicle VIN in Zepp');return;}
-   if(!cap.native_verified){
-    this.show('Polestar 4 saved • live status unavailable');return;
-   }
+   if(!cap||!cap.authenticated){this.show('Pair Android companion in Zepp');return;}
+   if(!cap.vehicle_configured){this.show('Add vehicle in Android');return;}
+   if(!cap.native_verified){this.show('Live status unavailable; refresh Android');return;}
    const r=await this.phoneRequest({method:'vehicle.status'},20000);
    if(!r||!r.ok){this.show(String(r&&r.error||'Vehicle unavailable'));return;}
    const battery=r.battery_percent,range=r.range_km;
    if(typeof battery!=='number'||!Number.isFinite(battery)||battery<0||battery>100||
-      typeof range!=='number'||!Number.isFinite(range)||range<0||range>2000){
+    typeof range!=='number'||!Number.isFinite(range)||range<0||range>2000){
     this.show('Vehicle values unavailable');return;
    }
-   this.polestarMetrics={battery,range,charging:!!r.charging,
+   this.polestarMetrics={battery,range,
+    charging:typeof r.charging==='boolean'?r.charging:null,
     lock:r.lock_state||'unknown',verified:true};
-   this.show('Lock '+this.polestarMetrics.lock+
-    (this.polestarMetrics.charging?' • Charging':' • Connected'));
+   this.render();this.show('Reading detailed C3 status...');
+   try{
+    const d=await this.phoneRequest({method:'vehicle.details'},32000);
+    if(d&&d.ok===true){
+     this.detailValues=d;
+     if(['locked','unlocked'].includes(d.lock_state))
+      this.polestarMetrics.lock=d.lock_state;
+     this.show('Vehicle status updated');
+    }else this.show('Basic status live; details unavailable');
+   }catch(e){this.show('Basic status live; details unavailable');}
   }catch(e){this.show('Zepp phone unavailable: '+String(e&&e.message||e).slice(0,70));}
   finally{this.busy=false;this.render();}
  },
