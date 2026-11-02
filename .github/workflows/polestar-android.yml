@@ -105,7 +105,7 @@ jobs:
             mkdir -p polestar-link/public
             cp /tmp/polestar-link-android-debug.apk polestar-link/public/polestar-link-android-v0.4.0-debug.apk
             checksum="$(sha256sum /tmp/polestar-link-android-debug.apk | cut -d ' ' -f 1)"
-            printf '{"versionCode":4,"versionName":"0.4.0","apkUrl":"https://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-android-v0.4.0-debug.apk","sha256":"%s"}\\n' "$checksum" > polestar-link/public/latest-android.json
+            printf '{"versionCode":4,"versionName":"0.4.0","apkUrl":"https://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-android-v0.4.0-debug.apk","sha256":"%s"}\n' "$checksum" > polestar-link/public/latest-android.json
             git add polestar-link/public/polestar-link-android-v0.4.0-debug.apk polestar-link/public/latest-android.json
             if git diff --cached --quiet; then
               echo "APK already published."
