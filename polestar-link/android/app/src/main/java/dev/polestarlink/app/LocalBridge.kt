@@ -156,6 +156,44 @@ class LocalBridge(
                                 .put("error", "C3 status unavailable"))
                         }
                     }
+                    "/details" -> {
+                        if (method != "GET") {
+                            respond(s, 400, JSONObject().put("error", "method_not_allowed")); return@use
+                        }
+                        val status = repository.status.value
+                        if (status == null ||
+                            System.currentTimeMillis() - status.fetchedAt >= 15 * 60_000) {
+                            respond(s, 503, JSONObject().put("error", "fresh_status_required")); return@use
+                        }
+                        try {
+                            val d = runBlocking { repository.refreshDetails() }
+                            val e = d.exterior
+                            respond(s, 200, JSONObject().put("ok", true)
+                                .put("lock_state", e.lockState)
+                                .put("window_state", e.windowState)
+                                .put("climate_state", d.climate.state)
+                                .put("climate_minutes", d.climate.minutesRemaining)
+                                .put("charging_state", d.battery.chargingState)
+                                .put("charger_connection", d.battery.chargerConnection)
+                                .put("charging_type", d.battery.chargingType)
+                                .put("charging_power_watts", d.battery.powerWatts)
+                                .put("time_to_full_minutes", d.battery.timeToFullMinutes)
+                                .put("odometer_km", d.odometerKm)
+                                .put("front_left_door", e.frontLeftDoor)
+                                .put("front_right_door", e.frontRightDoor)
+                                .put("rear_left_door", e.rearLeftDoor)
+                                .put("rear_right_door", e.rearRightDoor)
+                                .put("front_left_window", e.frontLeftWindow)
+                                .put("front_right_window", e.frontRightWindow)
+                                .put("rear_left_window", e.rearLeftWindow)
+                                .put("rear_right_window", e.rearRightWindow)
+                                .put("hood", e.hood).put("trunk", e.trunk)
+                                .put("sunroof", e.sunroof).put("charge_flap", e.chargeFlap))
+                        } catch (_: Exception) {
+                            respond(s, 503, JSONObject().put("ok", false)
+                                .put("error", "C3 details unavailable"))
+                        }
+                    }
                     "/command" -> {
                         if (method != "POST" || !body.optBoolean("confirmed", false)) {
                             respond(s, 400, JSONObject().put("error", "confirmation_required")); return@use
@@ -163,11 +201,15 @@ class LocalBridge(
                         val action = body.optString("action")
                         if (action !in setOf("lock", "unlock", "trunk", "flash", "honk",
                             "honk_flash", "windows_open", "windows_close",
-                            "climate_start", "climate_stop")) {
+                            "climate_start", "climate_stop", "charge_start", "charge_stop")) {
                             respond(s, 400, JSONObject().put("error", "invalid_action")); return@use
                         }
                         try {
-                            val result = runBlocking { repository.command(action) }
+                            val result = runBlocking {
+                                if (action == "charge_start" || action == "charge_stop")
+                                    repository.chargeOverride(action == "charge_start")
+                                else repository.command(action)
+                            }
                             respond(s, 200, JSONObject().put("ok", result.verified)
                                 .put("acknowledged", result.acknowledged)
                                 .put("verified", result.verified).put("error",

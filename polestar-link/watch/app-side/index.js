@@ -695,7 +695,7 @@ AppSideService(BaseSideService({
     res(null,{ok:true,...await syntheticCookiePreflight()});return;
    }
    if(req.method==='zepp.ping'){
-    res(null,{ok:true,version:'1.3.25-native-android-companion',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
+    res(null,{ok:true,version:'1.4.0-android-status-parity',auth:!!store().getItem('polestar.access'),pending:!!store().getItem('polestar.login.request'),status:store().getItem('polestar.login.status')||'Not connected'});return;
    }
    if(req.method==='vehicle.capabilities'&&store().getItem('polestar.bridge.token')){
     try{
@@ -719,6 +719,13 @@ AppSideService(BaseSideService({
     }catch(e){res(null,{ok:false,error:'Unable to connect to Android C3 companion'});}
     return;
    }
+   if(req.method==='vehicle.details'&&store().getItem('polestar.bridge.token')){
+    try{
+     const result=await nativeCompanion('GET','/details');
+     res(null,result.ok===true?result:{ok:false,error:'Android returned no verified C3 details'});
+    }catch(e){res(null,{ok:false,error:'Detailed vehicle status unavailable'});}
+    return;
+   }
    if(req.method==='vehicle.command'&&store().getItem('polestar.bridge.token')){
     const p=req.params||{};
     if(p.confirmed!==true){
@@ -730,6 +737,9 @@ AppSideService(BaseSideService({
      res(null,result);
     }catch(e){res(null,{ok:false,error:'Android C3 command unavailable'});}
     return;
+   }
+   if(req.method==='vehicle.details'){
+    res(null,{ok:false,error:'Pair the Android companion for detailed vehicle status'});return;
    }
    if(req.method==='vehicle.capabilities'){
     res(null,{ok:true,authenticated:!!store().getItem('polestar.access'),
