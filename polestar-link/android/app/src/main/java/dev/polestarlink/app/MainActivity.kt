@@ -3,6 +3,7 @@ package dev.polestarlink.app
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
+import java.io.File
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -120,6 +121,12 @@ private fun CompanionScreen(
     app: PolestarApplication, onEnableBridge: () -> Unit, onStopBridge: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val updater = remember(context) { AppUpdater(context.applicationContext) }
+    var availableUpdate by remember { mutableStateOf<AppUpdate?>(null) }
+    var updateApk by remember { mutableStateOf<File?>(null) }
+    var updateBusy by remember { mutableStateOf(false) }
+    var updateMessage by remember { mutableStateOf("Checking for updates…") }
     val state by app.repository.status.collectAsState()
     val repoError by app.repository.error.collectAsState()
     val details by app.repository.details.collectAsState()
@@ -135,6 +142,57 @@ private fun CompanionScreen(
     var discoveredCars by remember { mutableStateOf<List<String>>(emptyList()) }
     var vehicleLookupMessage by remember { mutableStateOf<String?>(null) }
     var checkingVehicle by remember { mutableStateOf(false) }
+
+    fun checkForUpdates() {
+        if (updateBusy) return
+        scope.launch {
+            updateBusy = true
+            updateMessage = "Checking for updates…"
+            try {
+                availableUpdate = updater.check()
+                updateApk = null
+                updateMessage = availableUpdate?.let { "Version ${it.versionName} is available" }
+                    ?: "You're up to date."
+            } catch (e: Exception) {
+                updateMessage = "Couldn't check for updates. Check internet access and retry."
+            } finally { updateBusy = false }
+        }
+    }
+
+    fun downloadAndInstallUpdate() {
+        val version = availableUpdate ?: return
+        if (updateBusy) return
+        val existing = updateApk
+        if (existing != null && existing.exists()) {
+            try {
+                val installerStarted = updater.startInstaller(existing)
+                updateMessage = if (installerStarted)
+                    "Android will ask you to approve the installation."
+                else "Allow Polestar Link to install updates in Android settings, then tap Install again."
+            } catch (e: Exception) {
+                updateMessage = "Unable to launch Android installer. Try again."
+            }
+            return
+        }
+        scope.launch {
+            updateBusy = true
+            updateMessage = "Downloading and verifying version ${version.versionName}…"
+            try {
+                val ready = updater.download(version)
+                updateApk = ready
+                updateBusy = false
+                downloadAndInstallUpdate()
+            } catch (e: Exception) {
+                updateApk = null
+                updateMessage = "Download verification failed: ${e.message ?: "Please retry."}"
+                updateBusy = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        checkForUpdates()
+    }
 
     fun findCars() {
         if (discovering || !signedIn) return
@@ -373,6 +431,12 @@ private fun CompanionScreen(
                                         refresh()
                                     } catch (e: Exception) { message = e.message }
                                 },
+                                update = availableUpdate,
+                                currentVersion = updater.currentVersionName(),
+                                updateBusy = updateBusy,
+                                updateMessage = updateMessage,
+                                onCheckUpdates = { checkForUpdates() },
+                                onInstallUpdate = { downloadAndInstallUpdate() },
                                 pairCode = pairingCode,
                                 onPair = {
                                     onEnableBridge()
@@ -796,10 +860,47 @@ private fun DetailSection(title: String, entries: List<Pair<String, String?>>) {
 private fun SettingsScreen(
     vinInput: String,
     onVinChange: (String) -> Unit, onSaveVin: () -> Unit,
+    update: AppUpdate?, currentVersion: String, updateBusy: Boolean,
+    updateMessage: String, onCheckUpdates: () -> Unit, onInstallUpdate: () -> Unit,
     pairCode: String?, onPair: () -> Unit,
     onStopBridge: () -> Unit, onSignOut: () -> Unit
 ) {
     SectionHeader("Settings")
+    Text("APP UPDATES", fontSize = 11.sp, letterSpacing = 1.8.sp, color = Muted)
+    SettingCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Refresh, null, tint = Mint)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Polestar Link $currentVersion", color = Ivory,
+                    fontWeight = FontWeight.Medium)
+                Text(updateMessage, color = if (update != null) Mint else Muted,
+                    fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        if (update != null) {
+            SolidButton(
+                if (updateBusy) "DOWNLOADING…" else "DOWNLOAD & INSTALL ${update.versionName}",
+                !updateBusy, onInstallUpdate
+            )
+        }
+        OutlinedButton(
+            onClick = onCheckUpdates,
+            enabled = !updateBusy,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("CHECK FOR UPDATES")
+        }
+        Text(
+            "Updates are verified against the Polestar Link signing certificate " +
+                "before Android asks you to install. Your account and settings remain " +
+                "saved when the signing certificate matches.",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+        )
+    }
     Text("ACCOUNT", fontSize = 11.sp, letterSpacing = 1.8.sp, color = Muted)
     SettingCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
