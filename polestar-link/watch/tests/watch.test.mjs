@@ -67,8 +67,9 @@ test('Lock action never reports successful outcome until vehicle state is confir
  page.build();
  for(let i=0;i<8;i++)await Promise.resolve();
  await page.arm('unlock');
+ assert.equal(page.pending,null);
  assert.equal(sent.filter(x=>x.method==='vehicle.command').length,0);
  await page.footerAction();
- assert.equal(sent.filter(x=>x.method==='vehicle.command').length,1);
- assert.match(page.notice.text,/state not verified/);
+ assert.equal(sent.filter(x=>x.method==='vehicle.command').length,0);
+ assert.match(page.notice.text,/unavailable/);
 });

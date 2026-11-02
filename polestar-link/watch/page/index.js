@@ -31,8 +31,12 @@ Page(BasePage({
    if(this.pending)void this.confirm();else this.setPage(next);
   },C.surface,14);
   const toggle=(page,x,y,label,key,activate,deactivate)=>{
-   const on=button(page,x,y,163,51,label+' ON',()=>void this.arm(deactivate),C.active,16,C.activeInk);
-   const off=button(page,x,y,163,51,label+' OFF',()=>void this.arm(activate),C.surface,16);
+   const onLabel=key==='lock'?'UNLOCKED':key==='window'?'WINDOWS OPEN':
+    key==='climate'?'CLIMATE ON':'CHARGING';
+   const offLabel=key==='lock'?'LOCKED':key==='window'?'WINDOWS CLOSED':
+    key==='climate'?'CLIMATE OFF':'CHARGE OFF';
+   const on=button(page,x,y,163,51,onLabel,()=>void this.arm(deactivate),C.active,16,C.activeInk);
+   const off=button(page,x,y,163,51,offLabel,()=>void this.arm(activate),C.surface,16);
    const unknown=button(page,x,y,163,51,label+' --',
     ()=>this.show('Live '+label.toLowerCase()+' state is unavailable'),C.card,16,C.muted);
    this.toggles.push({page,key,on,off,unknown});

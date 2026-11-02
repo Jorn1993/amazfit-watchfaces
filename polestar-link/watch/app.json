@@ -5,11 +5,11 @@
     "appName": "Polestar Link",
     "appType": "app",
     "version": {
-      "name": "1.3.25",
-      "code": 45
+      "name": "1.4.0",
+      "code": 46
     },
     "vender": "Personal prototype",
-    "description": "Optional native Android companion pairing to C3 status and controls",
+    "description": "Native Android paired live Polestar 4 status and safe controls",
     "icon": "icon.png"
   },
   "permissions": [

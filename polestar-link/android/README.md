@@ -58,3 +58,9 @@ Debug APKs generated on separate GitHub runners may have **different signing
 certificates**. If Android rejects an update with a signature conflict, remove
 the prior debug app and reinstall (this clears locally encrypted tokens and
 will require signing in again). Do not treat this as a production signing setup.
+
+## Amazfit Balance 2 parity (watch v1.4.0)
+
+The Android companion now exposes authenticated read-only `/details` data to the watch: live window, climate, charging and door states, charge power, odometer and more. The watch has overview, controls, vehicle status and exterior status screens, with single state-aware cards. Unknown states disable toggles. Every physical action still needs watch confirmation; charging requests are never reported as physically verified without a new C3 read.
+
+Phone and watch packages are separate. Automated tests are simulated; pairing and actual car commands require testing on the owner's devices.

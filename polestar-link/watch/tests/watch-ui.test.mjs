@@ -24,38 +24,62 @@ async function launch(verified=false){
     native_verified:verified};
   if(message.method==='vehicle.status')return {ok:true,
    battery_percent:77,range_km:340,charging:true,lock_state:'locked'};
+  if(message.method==='vehicle.details')return {ok:true,lock_state:'locked',
+   window_state:'open',climate_state:'active',charging_state:'charging',
+   charger_connection:'connected',charging_power_watts:6500,time_to_full_minutes:52,
+   odometer_km:12458,front_left_door:'closed',front_right_door:'closed',
+   rear_left_door:'closed',rear_right_door:'closed',trunk:'closed',hood:'closed'};
   if(message.method==='vehicle.command'){
    commands++;return {ok:false,pending:true,error:'Command outcome not independently verified'};
   }
   throw Error('Unexpected watch request');
  }};
  page.build();
- for(let i=0;i<6;i++)await Promise.resolve();
+ for(let i=0;i<20;i++)await Promise.resolve();
  return {page,widgets,commands:()=>commands};
 }
-test('Two watch views only: main dashboard and the full C3 action grid',async()=>{
+test('Four watch screens show status, controls and exterior details',async()=>{
  const {page,widgets}=await launch(true);
  assert.equal(page.screen,0);
- assert.equal(widgets.filter(w=>w.type==='IMG').length,1,'real Polestar logo on watch');
+ assert.equal(widgets.filter(w=>w.type==='IMG').length,1,'real Polestar logo');
  assert.equal(widgets.find(w=>w.type==='IMG').state.src,'polestar-mark.png');
- assert.equal(page.polestarMetrics.battery,77);
- assert.equal(page.polestarMetrics.range,340);
  assert.equal(page.battery.state.text,'77 %');
  assert.equal(page.range.state.text,'340 km');
- assert.equal(page.widgets.main.some(w=>w.state.text==='LOCK'),true);
- page.setPage(1);
- assert.equal(page.screen,1);
- assert.ok(page.widgets.main.every(w=>w.visible===false));
- assert.ok(page.widgets.more.every(w=>w.visible===true));
+ const lock=page.toggles.find(t=>t.key==='lock');
+ const windows=page.toggles.find(t=>t.key==='window');
+ const climate=page.toggles.find(t=>t.key==='climate');
+ const charge=page.toggles.find(t=>t.key==='charge');
+ assert.equal(lock.off.visible,true,'locked uses the dark card');
+ assert.equal(lock.off.state.text,'LOCKED');
+ assert.equal(windows.on.visible,true,'open windows use the bright card');
+ assert.equal(climate.on.visible,true);
+ assert.equal(charge.on.visible,true);
+ page.setPage(1);assert.equal(page.screen,1);
+ assert.ok(page.widgets.main.every(w=>!w.visible));
+ assert.ok(page.widgets.more.some(w=>w.visible));
  const actions=page.widgets.more.filter(w=>w.type==='BUTTON').map(w=>w.state.text);
- // Convert VM-owned arrays to host arrays before strict prototype comparison.
  assert.deepEqual(JSON.parse(JSON.stringify(actions)),[
-  'TRUNK','FLASH','HONK','HONK + FLASH',
-  'OPEN WINDOWS','CLOSE WINDOWS','CLIMATE ON','CLIMATE OFF','BACK'
+  'TRUNK','FLASH','HONK','HONK + FLASH','HOME','STATUS'
  ]);
- page.setPage(0);
- assert.equal(page.screen,0);
- assert.ok(page.widgets.more.every(w=>w.visible===false));
+ page.setPage(2);assert.equal(page.screen,2);
+ assert.equal(page.rows.find(x=>x.key==='power').value.state.text,'6500 W');
+ assert.equal(page.rows.find(x=>x.key==='timeToFull').value.state.text,'52 min');
+ page.setPage(3);assert.equal(page.screen,3);
+ assert.equal(page.rows.find(x=>x.key==='trunk').value.state.text,'closed');
+ page.setPage(0);assert.ok(page.widgets.exterior.every(w=>!w.visible));
+});
+test('Unknown detail values never enable a stateful control',async()=>{
+ const {page,commands}=await launch(true);
+ page.detailValues={};page.render();
+ for(const key of ['window','climate','charge']){
+  const t=page.toggles.find(x=>x.key===key);
+  assert.equal(t.unknown.visible,true);
+  assert.equal(t.on.visible,false);
+  assert.equal(t.off.visible,false);
+ }
+ assert.equal(commands(),0);
+ page.setPage(2);
+ assert.equal(page.rows.find(x=>x.key==='charging').value.state.text,'--');
 });
 test('Unverified native C3 blocks every physical control',async()=>{
  const {page,commands}=await launch(false);
