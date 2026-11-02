@@ -14,7 +14,24 @@ android {
         versionCode = 4
         versionName = "0.4.0"
     }
+    signingConfigs {
+        // CI release APKs must be signed with the *owner's persistent* key.
+        // Never rely on AGP auto-generating its own debug keystore.
+        create("polestarPersistent") {
+            val home = System.getenv("HOME")
+                ?: error("HOME not set for persistent Polestar signing")
+            storeFile = file("$home/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     buildTypes {
+        getByName("debug") {
+            if (System.getenv("GITHUB_ACTIONS") == "true") {
+                signingConfig = signingConfigs.getByName("polestarPersistent")
+            }
+        }
         release { isMinifyEnabled = false }
     }
     compileOptions {
