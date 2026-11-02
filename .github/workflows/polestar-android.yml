@@ -114,10 +114,19 @@ jobs:
             fi
             git reset --hard origin/feature/polestar-link
             mkdir -p polestar-link/public
-            cp /tmp/polestar-link-android-debug.apk polestar-link/public/polestar-link-android-v0.4.0-debug.apk
+            # Never hard-code release names: the version must match the compiled app.
+            gradle_config="polestar-link/android/app/build.gradle.kts"
+            version_code="$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' "$gradle_config" | head -1)"
+            version_name="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' "$gradle_config" | head -1)"
+            if ! [[ "$version_code" =~ ^[0-9]+$ && "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Cannot parse Android version from Gradle project"
+              exit 1
+            fi
+            apk_file="polestar-link-android-v$version_name-debug.apk"
+            cp /tmp/polestar-link-android-debug.apk "polestar-link/public/$apk_file"
             checksum="$(sha256sum /tmp/polestar-link-android-debug.apk | cut -d ' ' -f 1)"
-            printf '{"versionCode":4,"versionName":"0.4.0","apkUrl":"https://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/polestar-link-android-v0.4.0-debug.apk","sha256":"%s"}\n' "$checksum" > polestar-link/public/latest-android.json
-            git add polestar-link/public/polestar-link-android-v0.4.0-debug.apk polestar-link/public/latest-android.json
+            printf '{"versionCode":%s,"versionName":"%s","apkUrl":"https://raw.githubusercontent.com/Jorn1993/amazfit-watchfaces/feature/polestar-link/polestar-link/public/%s","sha256":"%s"}\n' "$version_code" "$version_name" "$apk_file" "$checksum" > polestar-link/public/latest-android.json
+            git add "polestar-link/public/$apk_file" polestar-link/public/latest-android.json
             if git diff --cached --quiet; then
               echo "APK already published."
               exit 0
