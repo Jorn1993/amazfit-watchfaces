@@ -9,7 +9,7 @@ const ACTIONS=[['TRUNK','trunk_unlock'],['FLASH','flash'],
  ['HONK','honk'],['HONK + FLASH','honk_flash']];
 const fmt=v=>v===undefined||v===null||v===''||v==='unknown'?'--':String(v);
 const num=(v,unit)=>typeof v==='number'&&Number.isFinite(v)&&v>=0?
- Math.round(v)+unit:'--';
+ Math.round(v)+unit:'--'+unit;
 const level=(s,yes,no)=>yes.includes(s)?'on':no.includes(s)?'off':'unknown';
 Page(BasePage({
  build(){
