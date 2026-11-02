@@ -73,8 +73,19 @@ jobs:
           digest="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" |
             awk -F ': ' '/Signer #1 certificate SHA-256 digest:/ {print $2}' | tr '[:upper:]' '[:lower:]')"
           expected="81923ecae0f2f7cf847b51dd84cf7f6564f99d43224663ff4442677523801db0"
-          if [ "$digest" != "$expected" ]; then
-            echo "::error::APK is not signed with the persistent Polestar Link certificate."
+          # Certificate fingerprints are public metadata, not signing secrets.
+          # Log both to distinguish an unexpected key from a parsing problem.
+          key_digest="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey |
+            awk '/SHA256:/ {sub(/.*SHA256: /,""); gsub(/:/,""); print tolower($0); exit}')"
+          echo "Configured keystore fingerprint: $key_digest"
+          echo "APK certificate fingerprint: $digest"
+          if [ -z "$digest" ]; then
+            echo "::error::Unable to parse apksigner certificate fingerprint."
+            exit 1
+          fi
+          if [ "$key_digest" != "$expected" ] || [ "$digest" != "$expected" ]; then
+            echo "::error::APK or configured keystore does not match the intended persistent signing certificate."
             exit 1
           fi
           echo "Verified stable APK signing certificate."
