@@ -87,7 +87,7 @@ class AppUpdater(private val context: Context) {
             "polestar-link-android-v${update.versionName}-debug.apk" &&
             shaPattern.matches(update.sha256)) { "Untrusted APK URL" }
         val directory = File(context.cacheDir, "updates").apply { mkdirs() }
-        val temporary = File(directory, "incoming.apk.part")
+        val temporary = File(directory, "incoming.apk")
         val verifiedFile = File(directory, "polestar-update.apk")
         temporary.delete()
         verifiedFile.delete()
